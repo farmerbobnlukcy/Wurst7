@@ -14,6 +14,8 @@ import net.minecraft.util.Hand;
 import net.minecraft.util.hit.EntityHitResult;
 import net.wurstclient.Category;
 import net.wurstclient.SearchTags;
+import net.wurstclient.event.ClientState;
+import net.wurstclient.event.Listener;
 import net.wurstclient.events.HandleInputListener;
 import net.wurstclient.events.PreMotionListener;
 import net.wurstclient.hack.Hack;
@@ -57,7 +59,8 @@ public final class TriggerBotHack extends Hack
 				+ "This would not be possible in vanilla and won't work if"
 				+ " \"Simulate mouse click\" is enabled.",
 			false);
-	
+	private final CheckboxSetting endonAFK = new CheckboxSetting("End if AFK",
+		"ends when the server says you are afk", true);
 	private final CheckboxSetting simulateMouseClick = new CheckboxSetting(
 		"Simulate mouse click",
 		"Simulates an actual mouse click (or key press) when attacking. Can be"
@@ -85,7 +88,7 @@ public final class TriggerBotHack extends Hack
 		addSetting(swingHand);
 		addSetting(attackWhileBlocking);
 		addSetting(simulateMouseClick);
-		
+		addSetting(endonAFK);
 		entityFilters.forEach(this::addSetting);
 	}
 	
@@ -105,6 +108,7 @@ public final class TriggerBotHack extends Hack
 		speed.resetTimer(speedRandMS.getValue());
 		EVENTS.add(PreMotionListener.class, this);
 		EVENTS.add(HandleInputListener.class, this);
+		EVENTS.add(Listener.class, this);
 	}
 	
 	@Override
@@ -133,6 +137,10 @@ public final class TriggerBotHack extends Hack
 	@Override
 	public void onHandleInput()
 	{
+		if(endonAFK.isChecked() && ClientState.isAfk())
+		{
+			onDisable();
+		}
 		speed.updateTimer();
 		if(!speed.isTimeToAttack())
 			return;

@@ -69,7 +69,7 @@
     "TitleScreenMixin",
     "WorldMixin",
     "WorldRendererMixin",
-    "TitleS2CPacketMixin"
+    "ClientPlayNetworkHandlerMixin"
   ],
   "injectors": {
     "defaultRequire": 1

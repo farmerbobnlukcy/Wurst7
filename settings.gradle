@@ -1,4 +1,8 @@
 pluginManagement {
+    rootProject.name = "mod-multi-version"
+    include(":mod-1.21.4")
+    include(":mod-1.21.5")
+    include(":mod-1.21.8")
     repositories {
         maven {
             name = 'Fabric'

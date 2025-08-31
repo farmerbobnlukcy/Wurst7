@@ -7,89 +7,55 @@
  */
 package net.wurstclient.mixin;
 
+import net.wurstclient.event.TitleEvents;
+import net.minecraft.client.network.ClientPlayNetworkHandler;
+import net.minecraft.network.packet.s2c.play.SubtitleS2CPacket;
+import net.minecraft.network.packet.s2c.play.TitleFadeS2CPacket;
+import net.minecraft.network.packet.s2c.play.TitleS2CPacket;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ClientCommonNetworkHandler;
-import net.minecraft.client.network.ClientConnectionState;
-import net.minecraft.client.network.ClientPlayNetworkHandler;
-import net.minecraft.client.toast.SystemToast;
-import net.minecraft.network.ClientConnection;
-import net.minecraft.network.listener.ClientPlayPacketListener;
-import net.minecraft.network.listener.TickablePacketListener;
-import net.minecraft.network.packet.s2c.play.BlockUpdateS2CPacket;
-import net.minecraft.network.packet.s2c.play.ChunkData;
-import net.minecraft.network.packet.s2c.play.ChunkDeltaUpdateS2CPacket;
-import net.minecraft.network.packet.s2c.play.GameJoinS2CPacket;
-import net.minecraft.text.MutableText;
-import net.minecraft.text.Text;
-import net.wurstclient.WurstClient;
-import net.wurstclient.util.ChatUtils;
-
 @Mixin(ClientPlayNetworkHandler.class)
-public abstract class ClientPlayNetworkHandlerMixin
-	extends ClientCommonNetworkHandler
-	implements TickablePacketListener, ClientPlayPacketListener
+public class ClientPlayNetworkHandlerMixin
 {
-	private ClientPlayNetworkHandlerMixin(WurstClient wurst,
-		MinecraftClient client, ClientConnection connection,
-		ClientConnectionState connectionState)
+	
+	@Inject(
+		method = "onTitle(Lnet/minecraft/network/packet/s2c/play/TitleS2CPacket;)V",
+		at = @At("HEAD"))
+	private void yourmod$onTitle(TitleS2CPacket packet, CallbackInfo ci)
 	{
-		super(client, connection, connectionState);
+		TitleEvents.fire(packet.text(), /* isSubtitle = */ false);
 	}
 	
-	@Inject(at = @At("TAIL"),
-		method = "onGameJoin(Lnet/minecraft/network/packet/s2c/play/GameJoinS2CPacket;)V")
-	public void onOnGameJoin(GameJoinS2CPacket packet, CallbackInfo ci)
+	@Inject(
+		method = "onSubtitle(Lnet/minecraft/network/packet/s2c/play/SubtitleS2CPacket;)V",
+		at = @At("HEAD"))
+	private void yourmod$onSubtitle(SubtitleS2CPacket packet, CallbackInfo ci)
 	{
-		WurstClient wurst = WurstClient.INSTANCE;
-		if(!wurst.isEnabled())
-			return;
-		
-		// Remove Mojang's dishonest warning toast on safe servers
-		if(!packet.enforcesSecureChat())
-		{
-			client.getToastManager().toastQueue.removeIf(toast -> toast
-				.getType() == SystemToast.Type.UNSECURE_SERVER_WARNING);
-			return;
-		}
-		
-		// Add an honest warning toast on unsafe servers
-		MutableText title = Text.literal(ChatUtils.WURST_PREFIX
-			+ wurst.translate("toast.wurst.nochatreports.unsafe_server.title"));
-		MutableText message = Text.literal(
-			wurst.translate("toast.wurst.nochatreports.unsafe_server.message"));
-		
-		SystemToast systemToast = SystemToast.create(client,
-			SystemToast.Type.UNSECURE_SERVER_WARNING, title, message);
-		client.getToastManager().add(systemToast);
+		TitleEvents.fire(packet.text(), /* isSubtitle = */ true);
 	}
 	
-	@Inject(at = @At("TAIL"),
-		method = "loadChunk(IILnet/minecraft/network/packet/s2c/play/ChunkData;)V")
-	private void onLoadChunk(int x, int z, ChunkData chunkData, CallbackInfo ci)
+	/*
+	 * // Optional: when the server clears titles, notify listeners with null
+	 *
+	 * @Inject(method =
+	 * "onClearTitle(Lnet/minecraft/network/packet/s2c/play/ClearTitleS2CPacket;)V",
+	 * at = @At("HEAD"))
+	 * private void yourmod$onClearTitle(ClearTitleS2CPacket packet,
+	 * CallbackInfo ci) {
+	 * TitleEvents.fire(null, false);
+	 * TitleEvents.fire(null, true);
+	 * }
+	 */
+	// Optional: fade timings are available here if you want them later
+	@Inject(
+		method = "onTitleFade(Lnet/minecraft/network/packet/s2c/play/TitleFadeS2CPacket;)V",
+		at = @At("HEAD"))
+	private void yourmod$onTitleFade(TitleFadeS2CPacket packet, CallbackInfo ci)
 	{
-		WurstClient.INSTANCE.getHax().newChunksHack.afterLoadChunk(x, z);
-	}
-	
-	@Inject(at = @At("TAIL"),
-		method = "onBlockUpdate(Lnet/minecraft/network/packet/s2c/play/BlockUpdateS2CPacket;)V")
-	private void onOnBlockUpdate(BlockUpdateS2CPacket packet, CallbackInfo ci)
-	{
-		WurstClient.INSTANCE.getHax().newChunksHack
-			.afterUpdateBlock(packet.getPos());
-	}
-	
-	@Inject(at = @At("TAIL"),
-		method = "onChunkDeltaUpdate(Lnet/minecraft/network/packet/s2c/play/ChunkDeltaUpdateS2CPacket;)V")
-	private void onOnChunkDeltaUpdate(ChunkDeltaUpdateS2CPacket packet,
-		CallbackInfo ci)
-	{
-		packet.visitUpdates(
-			(pos, state) -> WurstClient.INSTANCE.getHax().newChunksHack
-				.afterUpdateBlock(pos));
+		// packet.fadeInTicks(), packet.stayTicks(), packet.fadeOutTicks()
+		// (No event fired by default—add your own if you need timing)
 	}
 }

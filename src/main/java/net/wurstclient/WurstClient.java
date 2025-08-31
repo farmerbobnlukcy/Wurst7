@@ -75,6 +75,7 @@ public enum WurstClient
 	private WurstUpdater updater;
 	private ProblematicResourcePackDetector problematicPackDetector;
 	private Path wurstFolder;
+	public boolean isAFK; // this is simply for the client state
 	
 	public void initialize()
 	{
