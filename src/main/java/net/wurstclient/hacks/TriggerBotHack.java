@@ -7,15 +7,16 @@
  */
 package net.wurstclient.hacks;
 
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.entity.Entity;
+import net.minecraft.text.Text;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.EntityHitResult;
 import net.wurstclient.Category;
 import net.wurstclient.SearchTags;
-import net.wurstclient.events.HandleInputListener;
-import net.wurstclient.events.PreMotionListener;
+import net.wurstclient.events.*;
 import net.wurstclient.hack.Hack;
 import net.wurstclient.mixinterface.IKeyBinding;
 import net.wurstclient.settings.AttackSpeedSliderSetting;
@@ -26,11 +27,16 @@ import net.wurstclient.settings.SwingHandSetting;
 import net.wurstclient.settings.SwingHandSetting.SwingHand;
 import net.wurstclient.settings.filterlists.EntityFilterList;
 import net.wurstclient.util.EntityUtils;
+import net.wurstclient.events.TitleScreenListener;
+import net.wurstclient.events.UpdateListener;
+import net.wurstclient.util.ClientAfkState;
+
+import java.util.Locale;
 
 @SearchTags({"trigger bot", "AutoAttack", "auto attack", "AutoClicker",
 	"auto clicker"})
-public final class TriggerBotHack extends Hack
-	implements PreMotionListener, HandleInputListener
+public final class TriggerBotHack extends Hack implements UpdateListener,
+	PreMotionListener, HandleInputListener, TitleScreenListener
 {
 	private final SliderSetting range =
 		new SliderSetting("Range", 4.25, 1, 6, 0.05, ValueDisplay.DECIMAL);
@@ -68,7 +74,8 @@ public final class TriggerBotHack extends Hack
 			+ " Also, the \"Swing hand\" and \"Attack while blocking\" settings"
 			+ " will not work while this option is enabled.",
 		false);
-	
+	private final CheckboxSetting stopIfAfk = new CheckboxSetting("Stop if AFK",
+		"Stops attacking if you're AFK.", false);
 	private final EntityFilterList entityFilters =
 		EntityFilterList.genericCombat();
 	
@@ -85,7 +92,7 @@ public final class TriggerBotHack extends Hack
 		addSetting(swingHand);
 		addSetting(attackWhileBlocking);
 		addSetting(simulateMouseClick);
-		
+		addSetting(stopIfAfk);
 		entityFilters.forEach(this::addSetting);
 	}
 	
@@ -105,6 +112,53 @@ public final class TriggerBotHack extends Hack
 		speed.resetTimer(speedRandMS.getValue());
 		EVENTS.add(PreMotionListener.class, this);
 		EVENTS.add(HandleInputListener.class, this);
+		EVENTS.add(UpdateListener.class, this);
+		EVENTS.add(TitleScreenListener.class, this);
+	}
+	
+	@Override
+	public void onUpdate()
+	{
+		// --- AFK PAUSE: stop all TriggerBot behavior while AFK ---
+		if(ClientAfkState.isAfk())
+		{
+			// Make sure we aren't holding attack down
+			MinecraftClient mc = MinecraftClient.getInstance();
+			if(mc != null && mc.options != null)
+				mc.options.attackKey.setPressed(false);
+				
+			// If you keep any click timers/counters, reset them here
+			// (optional):
+			// this.clickTimer = 0; // <-- if such a field exists in your class
+			// this.nextClickTime = 0;
+			
+			return;
+			// do nothing while AFK
+		}
+	}
+	
+	@Override
+	public void onTitle(Text text, boolean isSubtitle)
+	{
+		if(text == null)
+		{
+			ClientAfkState.set(false);
+			return;
+		}
+		String s = text.getString();
+		if(s == null)
+			return;
+		
+		s = s.toLowerCase(Locale.ROOT);
+		if(s.equals("afk") || s.contains(" afk") || s.contains("[afk]")
+			|| s.contains("afk mode"))
+		{
+			ClientAfkState.set(true);
+		}else
+		{
+			// Optional policy: clear AFK when a different title appears
+			// ClientAfkState.set(false);
+		}
 	}
 	
 	@Override
@@ -118,6 +172,7 @@ public final class TriggerBotHack extends Hack
 		
 		EVENTS.remove(PreMotionListener.class, this);
 		EVENTS.remove(HandleInputListener.class, this);
+		
 	}
 	
 	@Override
@@ -133,7 +188,16 @@ public final class TriggerBotHack extends Hack
 	@Override
 	public void onHandleInput()
 	{
+		
 		speed.updateTimer();
+		if(ClientAfkState.isAfk())
+		{
+			setEnabled(false);
+			return;
+		}
+		if(stopIfAfk.isChecked() && ClientAfkState.isAfk())
+			onDisable();
+		
 		if(!speed.isTimeToAttack())
 			return;
 		
@@ -179,4 +243,5 @@ public final class TriggerBotHack extends Hack
 		
 		return entityFilters.testOne(entity);
 	}
+	
 }

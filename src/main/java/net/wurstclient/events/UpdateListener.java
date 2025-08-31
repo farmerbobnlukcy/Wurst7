@@ -23,6 +23,10 @@ public interface UpdateListener extends Listener
 		@Override
 		public void fire(ArrayList<UpdateListener> listeners)
 		{
+			// GLOBAL AFK GATE
+			if(net.wurstclient.util.ClientAfkState.isAfk())
+				return;
+			
 			for(UpdateListener listener : listeners)
 				listener.onUpdate();
 		}
