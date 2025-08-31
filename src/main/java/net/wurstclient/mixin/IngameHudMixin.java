@@ -79,4 +79,13 @@ public class IngameHudMixin
 		
 		ci.cancel();
 	}
+	//added to listen for title and subtitle changes
+	@Inject(method = "setTitle(Lnet/minecraft/text/Text;)V", at = @At("HEAD"))
+	private void titlewatch$onSetTitle(Text title, CallbackInfo ci) {
+		TitleWatchClient.TITLE_EVENT.invoker().onTitle(title, false);
+	}
+	@Inject(method = "setSubtitle(Lnet/minecraft/text/Text;)V", at = @At("HEAD"))
+	private void titlewatch$onSetSubtitle(Text subtitle, CallbackInfo ci) {
+		TitleWatchClient.TITLE_EVENT.invoker().onTitle(subtitle, true);
+	}
 }

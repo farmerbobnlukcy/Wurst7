@@ -68,7 +68,8 @@
     "TextVisitFactoryMixin",
     "TitleScreenMixin",
     "WorldMixin",
-    "WorldRendererMixin"
+    "WorldRendererMixin",
+    "TitleS2CPacketMixin"
   ],
   "injectors": {
     "defaultRequire": 1
