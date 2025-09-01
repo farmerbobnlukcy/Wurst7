@@ -58,67 +58,67 @@ import net.wurstclient.util.BlockBreaker.BlockBreakingParams;
 import net.wurstclient.util.BlockPlacer.BlockPlacingParams;
 
 @SearchTags({"auto librarian", "AutoVillager", "auto villager",
-	"VillagerTrainer", "villager trainer", "LibrarianTrainer",
-	"librarian trainer", "AutoHmmm", "auto hmmm"})
+		"VillagerTrainer", "villager trainer", "LibrarianTrainer",
+		"librarian trainer", "AutoHmmm", "auto hmmm"})
 public final class AutoLibrarianHack extends Hack
-	implements UpdateListener, RenderListener
+		implements UpdateListener, RenderListener
 {
 	private final BookOffersSetting wantedBooks = new BookOffersSetting(
-		"Wanted books",
-		"A list of enchanted books that you want your villagers to sell.\n\n"
-			+ "AutoLibrarian will stop training the current villager"
-			+ " once it has learned to sell one of these books.\n\n"
-			+ "You can also set a maximum price for each book, in case you"
-			+ " already have a villager selling it but you want it for a"
-			+ " cheaper price.",
-		"minecraft:depth_strider;3", "minecraft:efficiency;5",
-		"minecraft:feather_falling;4", "minecraft:fortune;3",
-		"minecraft:looting;3", "minecraft:mending;1", "minecraft:protection;4",
-		"minecraft:respiration;3", "minecraft:sharpness;5",
-		"minecraft:silk_touch;1", "minecraft:unbreaking;3");
+			"Wanted books",
+			"A list of enchanted books that you want your villagers to sell.\n\n"
+					+ "AutoLibrarian will stop training the current villager"
+					+ " once it has learned to sell one of these books.\n\n"
+					+ "You can also set a maximum price for each book, in case you"
+					+ " already have a villager selling it but you want it for a"
+					+ " cheaper price.",
+			"minecraft:depth_strider;3", "minecraft:efficiency;5",
+			"minecraft:feather_falling;4", "minecraft:fortune;3",
+			"minecraft:looting;3", "minecraft:mending;1", "minecraft:protection;4",
+			"minecraft:respiration;3", "minecraft:sharpness;5",
+			"minecraft:silk_touch;1", "minecraft:unbreaking;3");
 	
 	private final CheckboxSetting lockInTrade = new CheckboxSetting(
-		"Lock in trade",
-		"Automatically buys something from the villager once it has learned to"
-			+ " sell the book you want. This prevents the villager from"
-			+ " changing its trade offers later.\n\n"
-			+ "Make sure you have at least 24 paper and 9 emeralds in your"
-			+ " inventory when using this feature. Alternatively, 1 book and"
-			+ " 64 emeralds will also work.",
-		false);
+			"Lock in trade",
+			"Automatically buys something from the villager once it has learned to"
+					+ " sell the book you want. This prevents the villager from"
+					+ " changing its trade offers later.\n\n"
+					+ "Make sure you have at least 24 paper and 9 emeralds in your"
+					+ " inventory when using this feature. Alternatively, 1 book and"
+					+ " 64 emeralds will also work.",
+			false);
 	
 	private final UpdateBooksSetting updateBooks = new UpdateBooksSetting();
 	
 	private final SliderSetting range =
-		new SliderSetting("Range", 5, 1, 6, 0.05, ValueDisplay.DECIMAL);
+			new SliderSetting("Range", 5, 1, 6, 0.05, ValueDisplay.DECIMAL);
 	
 	private final FacingSetting facing = FacingSetting.withoutPacketSpam(
-		"How AutoLibrarian should face the villager and job site.\n\n"
-			+ "\u00a7lOff\u00a7r - Don't face the villager at all. Will be"
-			+ " detected by anti-cheat plugins.\n\n"
-			+ "\u00a7lServer-side\u00a7r - Face the villager on the"
-			+ " server-side, while still letting you move the camera freely on"
-			+ " the client-side.\n\n"
-			+ "\u00a7lClient-side\u00a7r - Face the villager by moving your"
-			+ " camera on the client-side. This is the most legit option, but"
-			+ " can be disorienting to look at.");
+			"How AutoLibrarian should face the villager and job site.\n\n"
+					+ "\u00a7lOff\u00a7r - Don't face the villager at all. Will be"
+					+ " detected by anti-cheat plugins.\n\n"
+					+ "\u00a7lServer-side\u00a7r - Face the villager on the"
+					+ " server-side, while still letting you move the camera freely on"
+					+ " the client-side.\n\n"
+					+ "\u00a7lClient-side\u00a7r - Face the villager by moving your"
+					+ " camera on the client-side. This is the most legit option, but"
+					+ " can be disorienting to look at.");
 	
 	private final SwingHandSetting swingHand =
-		new SwingHandSetting(this, SwingHand.SERVER);
+			new SwingHandSetting(this, SwingHand.SERVER);
 	
 	private final SliderSetting repairMode = new SliderSetting("Repair mode",
-		"Prevents AutoLibrarian from using your axe when its durability reaches"
-			+ " the given threshold, so you can repair it before it breaks.\n"
-			+ "Can be adjusted from 0 (off) to 100 remaining uses.",
-		1, 0, 100, 1, ValueDisplay.INTEGER.withLabel(0, "off"));
+			"Prevents AutoLibrarian from using your axe when its durability reaches"
+					+ " the given threshold, so you can repair it before it breaks.\n"
+					+ "Can be adjusted from 0 (off) to 100 remaining uses.",
+			1, 0, 100, 1, ValueDisplay.INTEGER.withLabel(0, "off"));
 	private final SliderSetting maxTries = new SliderSetting("Max Tries",
-		"Prevents AutoLibrarian from spamming the server with requests (and some plugins)"
-			+ " by setting the amount of tries to trade.\n"
-			+ "Can be adjusted from 0 (off) to 20.",
-		1, 0, 20, 1, ValueDisplay.INTEGER.withLabel(0, "off"));
+			"Prevents AutoLibrarian from spamming the server with requests (and some plugins)"
+					+ " by setting the amount of tries to trade.\n"
+					+ "Can be adjusted from 0 (off) to 20.",
+			1, 0, 20, 1, ValueDisplay.INTEGER.withLabel(0, "off"));
 	private final OverlayRenderer overlay = new OverlayRenderer();
 	private final HashSet<VillagerEntity> experiencedVillagers =
-		new HashSet<>();
+			new HashSet<>();
 	
 	private VillagerEntity villager;
 	private BlockPos jobSite;
@@ -185,7 +185,7 @@ public final class AutoLibrarianHack extends Hack
 		
 		if(placingJobSite && breakingJobSite)
 			throw new IllegalStateException(
-				"Trying to place and break job site at the same time. Something is wrong.");
+					"Trying to place and break job site at the same time. Something is wrong.");
 		
 		if(placingJobSite)
 		{
@@ -211,8 +211,8 @@ public final class AutoLibrarianHack extends Hack
 		if(experience > 0)
 		{
 			ChatUtils.warning("Villager at "
-				+ villager.getBlockPos().toShortString()
-				+ " is already experienced, meaning it can't be trained anymore.");
+					+ villager.getBlockPos().toShortString()
+					+ " is already experienced, meaning it can't be trained anymore.");
 			ChatUtils.message("Looking for another villager...");
 			experiencedVillagers.add(villager);
 			villager = null;
@@ -223,7 +223,7 @@ public final class AutoLibrarianHack extends Hack
 		
 		// check which book the villager is selling
 		BookOffer bookOffer =
-			findEnchantedBookOffer(tradeScreen.getScreenHandler().getRecipes());
+				findEnchantedBookOffer(tradeScreen.getScreenHandler().getRecipes());
 		
 		if(bookOffer == null)
 		{
@@ -235,8 +235,8 @@ public final class AutoLibrarianHack extends Hack
 		}
 		
 		ChatUtils.message(
-			"Villager is selling " + bookOffer.getEnchantmentNameWithLevel()
-				+ " for " + bookOffer.getFormattedPrice() + ".");
+				"Villager is selling " + bookOffer.getEnchantmentNameWithLevel()
+						+ " for " + bookOffer.getFormattedPrice() + ".");
 		
 		// if wrong enchantment, break job site and start over
 		if(!wantedBooks.isWanted(bookOffer))
@@ -254,12 +254,12 @@ public final class AutoLibrarianHack extends Hack
 			tradeScreen.getScreenHandler().setRecipeIndex(0);
 			tradeScreen.getScreenHandler().switchTo(0);
 			MC.getNetworkHandler()
-				.sendPacket(new SelectMerchantTradeC2SPacket(0));
+					.sendPacket(new SelectMerchantTradeC2SPacket(0));
 			
 			// buy whatever the villager is selling
 			MC.interactionManager.clickSlot(
-				tradeScreen.getScreenHandler().syncId, 2, 0,
-				SlotActionType.PICKUP, MC.player);
+					tradeScreen.getScreenHandler().syncId, 2, 0,
+					SlotActionType.PICKUP, MC.player);
 			
 			// close the trade screen
 			closeTradeScreen();
@@ -278,7 +278,7 @@ public final class AutoLibrarianHack extends Hack
 			throw new IllegalStateException("Job site is null.");
 		
 		BlockBreakingParams params =
-			BlockBreaker.getBlockBreakingParams(jobSite);
+				BlockBreaker.getBlockBreakingParams(jobSite);
 		
 		if(params == null || BlockUtils.getState(jobSite).isReplaceable())
 		{
@@ -290,14 +290,14 @@ public final class AutoLibrarianHack extends Hack
 		
 		// equip tool
 		WURST.getHax().autoToolHack.equipBestTool(jobSite, false, true,
-			repairMode.getValueI());
+				repairMode.getValueI());
 		
 		// face block
 		facing.getSelected().face(params.hitVec());
 		
 		// damage block and swing hand
 		if(MC.interactionManager.updateBlockBreakingProgress(jobSite,
-			params.side()))
+				params.side()))
 			swingHand.swing(Hand.MAIN_HAND);
 		
 		// update progress
@@ -320,7 +320,7 @@ public final class AutoLibrarianHack extends Hack
 			}else
 			{
 				System.out
-					.println("Found wrong block at job site. Breaking...");
+						.println("Found wrong block at job site. Breaking...");
 				breakingJobSite = true;
 				placingJobSite = false;
 			}
@@ -337,7 +337,7 @@ public final class AutoLibrarianHack extends Hack
 		
 		// get the hand that is holding the lectern
 		Hand hand = MC.player.getMainHandStack().isOf(Items.LECTERN)
-			? Hand.MAIN_HAND : Hand.OFF_HAND;
+				? Hand.MAIN_HAND : Hand.OFF_HAND;
 		
 		// sneak-place to avoid activating trapdoors/chests/etc.
 		IKeyBinding sneakKey = IKeyBinding.get(MC.options.sneakKey);
@@ -358,11 +358,11 @@ public final class AutoLibrarianHack extends Hack
 		
 		// place block
 		ActionResult result = MC.interactionManager.interactBlock(MC.player,
-			hand, params.toHitResult());
+				hand, params.toHitResult());
 		
 		// swing hand
 		if(result instanceof ActionResult.Success success
-			&& success.swingSource() == ActionResult.SwingSource.CLIENT)
+				&& success.swingSource() == ActionResult.SwingSource.CLIENT)
 			swingHand.swing(hand);
 		
 		// reset sneak
@@ -377,7 +377,7 @@ public final class AutoLibrarianHack extends Hack
 		if(executionCount >= maxTries.getValueI())
 		{
 			ChatUtils.error("Max tries " + maxTries.getValueI()
-				+ " reached. Breaking and trying again.");
+					+ " reached. Breaking and trying again.");
 			breakingJobSite = true;
 			placingJobSite = false;
 			return;
@@ -389,7 +389,7 @@ public final class AutoLibrarianHack extends Hack
 		if(player.squaredDistanceTo(villager) > range.getValueSq())
 		{
 			ChatUtils.error("Villager is out of range. Consider trapping"
-				+ " the villager so it doesn't wander away.");
+					+ " the villager so it doesn't wander away.");
 			setEnabled(false);
 			return;
 		}
@@ -407,14 +407,14 @@ public final class AutoLibrarianHack extends Hack
 		// click on villager
 		Hand hand = Hand.MAIN_HAND;
 		ActionResult actionResult =
-			im.interactEntityAtLocation(player, villager, hitResult, hand);
+				im.interactEntityAtLocation(player, villager, hitResult, hand);
 		
 		if(!actionResult.isAccepted())
 			im.interactEntity(player, villager, hand);
 		
 		// swing hand
 		if(actionResult instanceof ActionResult.Success success
-			&& success.swingSource() == ActionResult.SwingSource.CLIENT)
+				&& success.swingSource() == ActionResult.SwingSource.CLIENT)
 			swingHand.swing(hand);
 		
 		// set cooldown
@@ -437,13 +437,13 @@ public final class AutoLibrarianHack extends Hack
 				continue;
 			
 			Set<Entry<RegistryEntry<Enchantment>>> enchantmentLevelMap =
-				EnchantmentHelper.getEnchantments(stack)
-					.getEnchantmentEntries();
+					EnchantmentHelper.getEnchantments(stack)
+							.getEnchantmentEntries();
 			if(enchantmentLevelMap.isEmpty())
 				continue;
 			
 			Object2IntMap.Entry<RegistryEntry<Enchantment>> firstEntry =
-				enchantmentLevelMap.stream().findFirst().orElseThrow();
+					enchantmentLevelMap.stream().findFirst().orElseThrow();
 			
 			String enchantment = firstEntry.getKey().getIdAsString();
 			int level = firstEntry.getIntValue();
@@ -453,7 +453,7 @@ public final class AutoLibrarianHack extends Hack
 			if(!bookOffer.isFullyValid())
 			{
 				System.out.println("Found invalid enchanted book offer.\n"
-					+ "Component data: " + enchantmentLevelMap);
+						+ "Component data: " + enchantmentLevelMap);
 				continue;
 			}
 			
@@ -469,19 +469,19 @@ public final class AutoLibrarianHack extends Hack
 		double rangeSq = range.getValueSq();
 		
 		Stream<VillagerEntity> stream =
-			StreamSupport.stream(MC.world.getEntities().spliterator(), true)
-				.filter(e -> !e.isRemoved())
-				.filter(VillagerEntity.class::isInstance)
-				.map(e -> (VillagerEntity)e).filter(e -> e.getHealth() > 0)
-				.filter(e -> player.squaredDistanceTo(e) <= rangeSq)
-				.filter(e -> e.getVillagerData()
-					.getProfession() == VillagerProfession.LIBRARIAN)
-				.filter(e -> e.getVillagerData().getLevel() == 1)
-				.filter(e -> !experiencedVillagers.contains(e));
+				StreamSupport.stream(MC.world.getEntities().spliterator(), true)
+						.filter(e -> !e.isRemoved())
+						.filter(VillagerEntity.class::isInstance)
+						.map(e -> (VillagerEntity)e).filter(e -> e.getHealth() > 0)
+						.filter(e -> player.squaredDistanceTo(e) <= rangeSq)
+						.filter(e -> e.getVillagerData()
+								.getProfession() == VillagerProfession.LIBRARIAN)
+						.filter(e -> e.getVillagerData().getLevel() == 1)
+						.filter(e -> !experiencedVillagers.contains(e));
 		
 		villager = stream
-			.min(Comparator.comparingDouble(e -> player.squaredDistanceTo(e)))
-			.orElse(null);
+				.min(Comparator.comparingDouble(e -> player.squaredDistanceTo(e)))
+				.orElse(null);
 		
 		if(villager == null)
 		{
@@ -489,12 +489,12 @@ public final class AutoLibrarianHack extends Hack
 			int numExperienced = experiencedVillagers.size();
 			if(numExperienced > 0)
 				errorMsg += " (Except for " + numExperienced + " that "
-					+ (numExperienced == 1 ? "is" : "are")
-					+ " already experienced.)";
+						+ (numExperienced == 1 ? "is" : "are")
+						+ " already experienced.)";
 			
 			ChatUtils.error(errorMsg);
 			ChatUtils.message("Make sure both the librarian and the lectern"
-				+ " are reachable from where you are standing.");
+					+ " are reachable from where you are standing.");
 			setEnabled(false);
 			return;
 		}
@@ -508,22 +508,22 @@ public final class AutoLibrarianHack extends Hack
 		double rangeSq = range.getValueSq();
 		
 		Stream<BlockPos> stream = BlockUtils
-			.getAllInBoxStream(BlockPos.ofFloored(eyesVec),
-				range.getValueCeil())
-			.filter(pos -> eyesVec
-				.squaredDistanceTo(Vec3d.ofCenter(pos)) <= rangeSq)
-			.filter(pos -> BlockUtils.getBlock(pos) == Blocks.LECTERN);
+				.getAllInBoxStream(BlockPos.ofFloored(eyesVec),
+						range.getValueCeil())
+				.filter(pos -> eyesVec
+						.squaredDistanceTo(Vec3d.ofCenter(pos)) <= rangeSq)
+				.filter(pos -> BlockUtils.getBlock(pos) == Blocks.LECTERN);
 		
 		jobSite = stream
-			.min(Comparator.comparingDouble(
-				pos -> villager.squaredDistanceTo(Vec3d.ofCenter(pos))))
-			.orElse(null);
+				.min(Comparator.comparingDouble(
+						pos -> villager.squaredDistanceTo(Vec3d.ofCenter(pos))))
+				.orElse(null);
 		
 		if(jobSite == null)
 		{
 			ChatUtils.error("Couldn't find the librarian's lectern.");
 			ChatUtils.message("Make sure both the librarian and the lectern"
-				+ " are reachable from where you are standing.");
+					+ " are reachable from where you are standing.");
 			setEnabled(false);
 			return;
 		}
@@ -539,14 +539,14 @@ public final class AutoLibrarianHack extends Hack
 		
 		if(villager != null)
 			RenderUtils.drawOutlinedBox(matrixStack, villager.getBoundingBox(),
-				green, false);
+					green, false);
 		
 		if(jobSite != null)
 			RenderUtils.drawOutlinedBox(matrixStack, new Box(jobSite), green,
-				false);
+					false);
 		
 		List<Box> expVilBoxes = experiencedVillagers.stream()
-			.map(VillagerEntity::getBoundingBox).toList();
+				.map(VillagerEntity::getBoundingBox).toList();
 		RenderUtils.drawOutlinedBoxes(matrixStack, expVilBoxes, red, false);
 		RenderUtils.drawCrossBoxes(matrixStack, expVilBoxes, red, false);
 		
