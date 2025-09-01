@@ -7,6 +7,10 @@
  */
 package net.wurstclient.mixin;
 
+import net.minecraft.network.packet.s2c.play.*;
+import net.wurstclient.event.EventManager;
+import net.wurstclient.events.TitleScreenListener;
+import net.wurstclient.util.GlobalGuards;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -20,10 +24,6 @@ import net.minecraft.client.toast.SystemToast;
 import net.minecraft.network.ClientConnection;
 import net.minecraft.network.listener.ClientPlayPacketListener;
 import net.minecraft.network.listener.TickablePacketListener;
-import net.minecraft.network.packet.s2c.play.BlockUpdateS2CPacket;
-import net.minecraft.network.packet.s2c.play.ChunkData;
-import net.minecraft.network.packet.s2c.play.ChunkDeltaUpdateS2CPacket;
-import net.minecraft.network.packet.s2c.play.GameJoinS2CPacket;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
 import net.wurstclient.WurstClient;
@@ -91,5 +91,34 @@ public abstract class ClientPlayNetworkHandlerMixin
 		packet.visitUpdates(
 			(pos, state) -> WurstClient.INSTANCE.getHax().newChunksHack
 				.afterUpdateBlock(pos));
+	}
+	
+	@Inject(method = "onTitle", at = @At("HEAD"))
+	private void wurst$onTitle(TitleS2CPacket packet, CallbackInfo ci)
+	{
+		EventManager
+			.fire(new TitleScreenListener.TitleEvent(packet.text(), false));
+		// Soft-detect AFK here (keeps it centralized)
+		if(packet.text() != null
+			&& packet.text().getString().toLowerCase().contains("afk"))
+			GlobalGuards.setPause(true);
+	}
+	
+	@Inject(method = "onSubtitle", at = @At("HEAD"))
+	private void wurst$onSubtitle(SubtitleS2CPacket packet, CallbackInfo ci)
+	{
+		EventManager
+			.fire(new TitleScreenListener.TitleEvent(packet.text(), true));
+		if(packet.text() != null
+			&& packet.text().getString().toLowerCase().contains("afk"))
+			GlobalGuards.setPause(true);
+	}
+	
+	// Yarn 1.21.4: the clear method is "onTitleClear"
+	@Inject(method = "onTitleClear", at = @At("HEAD"))
+	private void wurst$onTitleClear(ClearTitleS2CPacket packet, CallbackInfo ci)
+	{
+		EventManager.fire(new TitleScreenListener.TitleClearEvent());
+		GlobalGuards.setPause(false);
 	}
 }
