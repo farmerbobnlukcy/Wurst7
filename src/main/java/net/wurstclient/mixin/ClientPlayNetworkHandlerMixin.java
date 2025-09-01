@@ -7,10 +7,6 @@
  */
 package net.wurstclient.mixin;
 
-import net.minecraft.network.packet.s2c.play.*;
-import net.wurstclient.event.EventManager;
-import net.wurstclient.events.TitleScreenListener;
-import net.wurstclient.util.ClientAfkState;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -24,6 +20,10 @@ import net.minecraft.client.toast.SystemToast;
 import net.minecraft.network.ClientConnection;
 import net.minecraft.network.listener.ClientPlayPacketListener;
 import net.minecraft.network.listener.TickablePacketListener;
+import net.minecraft.network.packet.s2c.play.BlockUpdateS2CPacket;
+import net.minecraft.network.packet.s2c.play.ChunkData;
+import net.minecraft.network.packet.s2c.play.ChunkDeltaUpdateS2CPacket;
+import net.minecraft.network.packet.s2c.play.GameJoinS2CPacket;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
 import net.wurstclient.WurstClient;
@@ -91,59 +91,5 @@ public abstract class ClientPlayNetworkHandlerMixin
 		packet.visitUpdates(
 			(pos, state) -> WurstClient.INSTANCE.getHax().newChunksHack
 				.afterUpdateBlock(pos));
-	}
-	
-	/**
-	 * FarmerBobnLucky
-	 *
-	 * @param packet
-	 * @param ci
-	 *
-	 *            Why these methods? In 1.21.4 Yarn, the packet handlers are
-	 *            exactly:
-	 *
-	 *            ClientPlayNetworkHandler.onTitle(TitleS2CPacket) and
-	 *            ClientPlayPacketListener.onTitle(TitleS2CPacket); the packet
-	 *            has text() accessor.
-	 *            Maven Fabric
-	 *            +1
-	 *
-	 *            Clear is
-	 *            ClientPlayNetworkHandler.onTitleClear(ClearTitleS2CPacket).
-	 *            (Your earlier onClearTitle typo is why it failed.)
-	 *            Maven Fabric
-	 *
-	 *            Mixin config: add the new mixin to your JSON:
-	 *			
-	 *            src/main/resources/wurst.mixins.json (or your mod’s mixins
-	 *            file)
-	 */
-	@Inject(method = "onTitle", at = @At("HEAD"))
-	private void wurst$onTitle(TitleS2CPacket packet, CallbackInfo ci)
-	{
-		EventManager
-			.fire(new TitleScreenListener.TitleEvent(packet.text(), false));
-		// Soft-detect AFK here (keeps it centralized)
-		if(packet.text() != null
-			&& packet.text().getString().toLowerCase().contains("afk"))
-			ClientAfkState.setAfk(true);
-	}
-	
-	@Inject(method = "onSubtitle", at = @At("HEAD"))
-	private void wurst$onSubtitle(SubtitleS2CPacket packet, CallbackInfo ci)
-	{
-		EventManager
-			.fire(new TitleScreenListener.TitleEvent(packet.text(), true));
-		if(packet.text() != null
-			&& packet.text().getString().toLowerCase().contains("afk"))
-			ClientAfkState.setAfk(true);
-	}
-	
-	// Yarn 1.21.4: the clear method is "onTitleClear"
-	@Inject(method = "onTitleClear", at = @At("HEAD"))
-	private void wurst$onTitleClear(ClearTitleS2CPacket packet, CallbackInfo ci)
-	{
-		EventManager.fire(new TitleScreenListener.TitleClearEvent());
-		ClientAfkState.setAfk(false);
 	}
 }
