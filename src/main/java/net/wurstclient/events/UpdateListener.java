@@ -23,6 +23,9 @@ public interface UpdateListener extends Listener
 		@Override
 		public void fire(ArrayList<UpdateListener> listeners)
 		{
+			if(net.wurstclient.util.GlobalGuards.shouldPause())
+				return; // pause every Update-driven hack
+				
 			for(UpdateListener listener : listeners)
 				listener.onUpdate();
 		}
