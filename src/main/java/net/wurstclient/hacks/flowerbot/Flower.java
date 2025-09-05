@@ -29,7 +29,8 @@ public class Flower
 		int color = 0x80FF00FF; // Purple color for flowers
 		Box box = new Box(BlockPos.ORIGIN).contract(1 / 16.0);
 		
-		List<Box> flowerBoxes = flowers.stream().map(pos -> box.offset(pos)).toList();
+		List<Box> flowerBoxes =
+			flowers.stream().map(pos -> box.offset(pos)).toList();
 		RenderUtils.drawOutlinedBoxes(matrixStack, flowerBoxes, color, false);
 	}
 	

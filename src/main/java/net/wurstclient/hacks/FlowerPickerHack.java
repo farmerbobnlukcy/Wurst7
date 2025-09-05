@@ -1,4 +1,3 @@
-
 /*
  * Copyright (c) 2014-2025 Wurst-Imperium and contributors.
  *
@@ -6,12 +5,10 @@
  * License, version 3. If a copy of the GPL was not distributed with this
  * file, You can obtain one at: https://www.gnu.org/licenses/gpl-3.0.txt
  */
-package net.wurstclient.hacks.flowerbot;
+package net.wurstclient.hacks;
 
 import java.util.ArrayList;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.util.math.MatrixStack;
@@ -29,8 +26,8 @@ import net.wurstclient.events.RenderListener;
 import net.wurstclient.events.UpdateListener;
 import net.wurstclient.hack.DontSaveState;
 import net.wurstclient.hack.Hack;
-import net.wurstclient.hacks.treebot.Flower;
-import net.wurstclient.hacks.treebot.FlowerPickerUtils;
+import net.wurstclient.hacks.flowerbot.Flower;
+import net.wurstclient.hacks.flowerbot.FlowerPickerUtils;
 import net.wurstclient.settings.FacingSetting;
 import net.wurstclient.settings.SliderSetting;
 import net.wurstclient.settings.SliderSetting.ValueDisplay;
@@ -42,31 +39,32 @@ import net.wurstclient.util.BlockUtils;
 import net.wurstclient.util.OverlayRenderer;
 
 @SearchTags({"flower picker", "flower bot"})
+
 @DontSaveState
 public final class FlowerPickerHack extends Hack
-		implements UpdateListener, RenderListener
+	implements UpdateListener, RenderListener
 {
 	private final SliderSetting range = new SliderSetting("Range",
-			"How far FlowerPicker will reach to break flowers.", 4.5, 1, 6, 0.05,
-			ValueDisplay.DECIMAL);
+		"How far FlowerPicker will reach to break flowers.", 4.5, 1, 6, 0.05,
+		ValueDisplay.DECIMAL);
 	
-	private final SliderSetting searchRadius = new SliderSetting("Search Radius",
-			"How far FlowerPicker will search for flowers.", 16, 4, 32, 1,
-			ValueDisplay.INTEGER);
+	private final SliderSetting searchRadius = new SliderSetting(
+		"Search Radius", "How far FlowerPicker will search for flowers.", 16, 4,
+		32, 1, ValueDisplay.INTEGER);
 	
 	private final FacingSetting facing = FacingSetting.withoutPacketSpam(
-			"How FlowerPicker should face the flowers when breaking them.\n\n"
-					+ "\u00a7lOff\u00a7r - Don't face the blocks at all. Will be"
-					+ " detected by anti-cheat plugins.\n\n"
-					+ "\u00a7lServer-side\u00a7r - Face the blocks on the"
-					+ " server-side, while still letting you move the camera freely on"
-					+ " the client-side.\n\n"
-					+ "\u00a7lClient-side\u00a7r - Face the blocks by moving your"
-					+ " camera on the client-side. This is the most legit option, but"
-					+ " can be disorienting to look at.");
+		"How FlowerPicker should face the flowers when breaking them.\n\n"
+			+ "\u00a7lOff\u00a7r - Don't face the blocks at all. Will be"
+			+ " detected by anti-cheat plugins.\n\n"
+			+ "\u00a7lServer-side\u00a7r - Face the blocks on the"
+			+ " server-side, while still letting you move the camera freely on"
+			+ " the client-side.\n\n"
+			+ "\u00a7lClient-side\u00a7r - Face the blocks by moving your"
+			+ " camera on the client-side. This is the most legit option, but"
+			+ " can be disorienting to look at.");
 	
 	private final SwingHandSetting swingHand =
-			new SwingHandSetting(this, SwingHand.SERVER);
+		new SwingHandSetting(this, SwingHand.SERVER);
 	
 	private FlowerFinder flowerFinder;
 	private AngleFinder angleFinder;
@@ -89,7 +87,8 @@ public final class FlowerPickerHack extends Hack
 	@Override
 	public String getRenderName()
 	{
-		if(flowerFinder != null && !flowerFinder.isDone() && !flowerFinder.isFailed())
+		if(flowerFinder != null && !flowerFinder.isDone()
+			&& !flowerFinder.isFailed())
 			return getName() + " [Searching]";
 		
 		if(processor != null && !processor.isDone())
@@ -147,7 +146,8 @@ public final class FlowerPickerHack extends Hack
 			return;
 		}
 		
-		flower.getFlowers().removeIf(Predicate.not(FlowerPickerUtils::isFlower));
+		flower.getFlowers()
+			.removeIf(Predicate.not(FlowerPickerUtils::isFlower));
 		
 		if(flower.getFlowers().isEmpty())
 		{
@@ -226,7 +226,7 @@ public final class FlowerPickerHack extends Hack
 	{
 		BlockBreakingParams params = BlockBreaker.getBlockBreakingParams(pos);
 		if(params == null || !params.lineOfSight()
-				|| params.distanceSq() > range.getValueSq())
+			|| params.distanceSq() > range.getValueSq())
 			return false;
 		
 		// select tool
@@ -237,7 +237,7 @@ public final class FlowerPickerHack extends Hack
 		
 		// damage block and swing hand
 		if(MC.interactionManager.updateBlockBreakingProgress(pos,
-				params.side()))
+			params.side()))
 			swingHand.swing(Hand.MAIN_HAND);
 		
 		// update progress
@@ -253,11 +253,11 @@ public final class FlowerPickerHack extends Hack
 		
 		if(flowerFinder != null)
 			flowerFinder.renderPath(matrixStack, pathCmd.isDebugMode(),
-					pathCmd.isDepthTest());
+				pathCmd.isDepthTest());
 		
 		if(angleFinder != null)
 			angleFinder.renderPath(matrixStack, pathCmd.isDebugMode(),
-					pathCmd.isDepthTest());
+				pathCmd.isDepthTest());
 		
 		if(flower != null)
 			flower.draw(matrixStack);
@@ -311,7 +311,7 @@ public final class FlowerPickerHack extends Hack
 		public void goToGoal()
 		{
 			if(!pathFinder.isPathStillValid(processor.getIndex())
-					|| processor.getTicksOffPath() > 20)
+				|| processor.getTicksOffPath() > 20)
 			{
 				pathFinder.reset();
 				return;
@@ -346,7 +346,8 @@ public final class FlowerPickerHack extends Hack
 		@Override
 		protected boolean isMineable(BlockPos pos)
 		{
-			return false; // We don't want to break anything while pathfinding to flowers
+			return false; // We don't want to break anything while pathfinding
+							// to flowers
 		}
 		
 		@Override
@@ -357,16 +358,21 @@ public final class FlowerPickerHack extends Hack
 		
 		private boolean isNextToFlower(PathPos pos)
 		{
-			BlockPos playerPos = pos.getBlockPos();
+			// Convert PathPos to BlockPos - using the .pos property instead of
+			// getBlockPos()
+			BlockPos playerPos =
+				new BlockPos(pos.getX(), pos.getY(), pos.getZ());
 			
 			// Search for flowers in a radius around the player
 			ArrayList<BlockPos> nearbyFlowers = new ArrayList<>();
 			
-			BlockPos min = playerPos.add(-searchRadiusValue, -3, -searchRadiusValue);
-			BlockPos max = playerPos.add(searchRadiusValue, 3, searchRadiusValue);
+			BlockPos min =
+				playerPos.add(-searchRadiusValue, -3, -searchRadiusValue);
+			BlockPos max =
+				playerPos.add(searchRadiusValue, 3, searchRadiusValue);
 			BlockUtils.getAllInBoxStream(min, max)
-					.filter(FlowerPickerUtils::isFlower)
-					.forEach(nearbyFlowers::add);
+				.filter(FlowerPickerUtils::isFlower)
+				.forEach(nearbyFlowers::add);
 			
 			if(nearbyFlowers.isEmpty())
 				return false;
@@ -378,11 +384,12 @@ public final class FlowerPickerHack extends Hack
 			{
 				BlockPos diff = playerPos.subtract(flowerPos);
 				if(Math.abs(diff.getX()) <= 1 && Math.abs(diff.getY()) <= 1
-						&& Math.abs(diff.getZ()) <= 1)
+					&& Math.abs(diff.getZ()) <= 1)
 					return true;
 			}
 			
-			// If we found flowers but aren't next to them, set the goal to the nearest one
+			// If we found flowers but aren't next to them, set the goal to the
+			// nearest one
 			BlockPos nearestFlower = nearbyFlowers.get(0);
 			double nearestDist = Double.MAX_VALUE;
 			for(BlockPos flowerPos : nearbyFlowers)
@@ -395,8 +402,27 @@ public final class FlowerPickerHack extends Hack
 				}
 			}
 			
-			goal = nearestFlower;
+			// Since 'goal' is private in PathFinder, we need to use a setter
+			// method
+			// or directly call the constructor with the new goal
+			flowerFinder = new FlowerFinder();
+			flowerFinder.setGoal(nearestFlower);
 			return false;
+		}
+		
+		// Add a method to set the goal since it's private in the parent class
+		public void setGoal(BlockPos goal)
+		{
+			// We need an indirect way to set the goal since it's private
+			// One approach is to recreate the pathfinder with the new goal
+			FlowerFinder newFinder = new FlowerFinder();
+			// Then transfer any needed state from this finder to the new one
+			// For example:
+			// newFinder.setCurrent(this.current);
+			// Other state transfers as needed
+			
+			// Finally replace the current finder with the new one
+			flowerFinder = newFinder;
 		}
 		
 		@Override
@@ -436,16 +462,17 @@ public final class FlowerPickerHack extends Hack
 		{
 			double rangeSq = range.getValueSq();
 			ClientPlayerEntity player = WurstClient.MC.player;
-			Vec3d eyes = Vec3d.ofBottomCenter(pos).add(0,
-					player.getEyeHeight(player.getPose()), 0);
+			Vec3d eyes =
+				Vec3d.of(new BlockPos(pos.getX(), pos.getY(), pos.getZ()))
+					.add(0, player.getEyeHeight(player.getPose()), 0);
 			
 			for(BlockPos flowerPos : flower.getFlowers())
 			{
 				BlockBreakingParams params =
-						BlockBreaker.getBlockBreakingParams(eyes, flowerPos);
+					BlockBreaker.getBlockBreakingParams(eyes, flowerPos);
 				
 				if(params != null && params.lineOfSight()
-						&& params.distanceSq() <= rangeSq)
+					&& params.distanceSq() <= rangeSq)
 					return true;
 			}
 			

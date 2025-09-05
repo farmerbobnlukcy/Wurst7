@@ -24,8 +24,8 @@ import net.wurstclient.WurstClient;
 import net.wurstclient.event.EventManager;
 import net.wurstclient.events.UpdateListener;
 import net.wurstclient.hacks.*;
-import net.wurstclient.hacks.flowerbot.FlowerPickerHack;
-import net.wurstclient.hacks.itemgatherer.ItemGathererHack;
+import net.wurstclient.hacks.FlowerPickerHack;
+import net.wurstclient.hacks.ItemGathererHack;
 import net.wurstclient.util.json.JsonException;
 
 public final class HackList implements UpdateListener

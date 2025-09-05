@@ -92,7 +92,8 @@ public class DisconnectedScreenMixin extends Screen
 		AutoReconnectHack autoReconnect =
 			WurstClient.INSTANCE.getHax().autoReconnectHack;
 		
-		if(autoReconnect.isEnabled()){
+		if(autoReconnect.isEnabled())
+		{
 			autoReconnectTimer = autoReconnect.getWaitTicks();
 			maxRetries = autoReconnect.getMaxRetries();
 		}
@@ -105,10 +106,11 @@ public class DisconnectedScreenMixin extends Screen
 		
 		autoReconnect.setEnabled(!autoReconnect.isEnabled());
 		
-		if(autoReconnect.isEnabled()){
+		if(autoReconnect.isEnabled())
+		{
 			autoReconnectTimer = autoReconnect.getWaitTicks();
-		maxRetries = autoReconnect.getMaxRetries();
-		reconnectCount = 0;
+			maxRetries = autoReconnect.getMaxRetries();
+			reconnectCount = 0;
 		}
 	}
 	
@@ -132,8 +134,6 @@ public class DisconnectedScreenMixin extends Screen
 			autoReconnect.setEnabled(false);
 			return;
 		}
-		
-		
 		
 		autoReconnectButton.setMessage(Text.literal("AutoReconnect ("
 			+ (int)Math.ceil(autoReconnectTimer / 20.0) + ")"));

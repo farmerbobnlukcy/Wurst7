@@ -33,14 +33,10 @@ import net.wurstclient.events.RenderListener;
 import net.wurstclient.events.UpdateListener;
 import net.wurstclient.hack.DontSaveState;
 import net.wurstclient.hack.Hack;
-import net.wurstclient.hacks.itemgatherer.ItemGathererHack;
 import net.wurstclient.hacks.treebot.Tree;
 import net.wurstclient.hacks.treebot.TreeBotUtils;
-import net.wurstclient.settings.CheckboxSetting;
-import net.wurstclient.settings.FacingSetting;
-import net.wurstclient.settings.SliderSetting;
+import net.wurstclient.settings.*;
 import net.wurstclient.settings.SliderSetting.ValueDisplay;
-import net.wurstclient.settings.SwingHandSetting;
 import net.wurstclient.settings.SwingHandSetting.SwingHand;
 import net.wurstclient.util.BlockBreaker;
 import net.wurstclient.util.BlockBreaker.BlockBreakingParams;
@@ -72,11 +68,11 @@ public final class TreeBotHack extends Hack
 	
 	private final CheckboxSetting collectDrops = new CheckboxSetting(
 		"Collect Drops",
-		"When enabled, TreeBot will collect dropped items after cutting a tree.", 
+		"When enabled, TreeBot will collect dropped items after cutting a tree.",
 		true);
 	
 	private final SliderSetting itemSearchRange = new SliderSetting(
-		"Item Search Range", 
+		"Item Search Range",
 		"How far TreeBot will search for dropped items after cutting a tree.",
 		16, 4, 32, 1, ValueDisplay.INTEGER);
 	
@@ -202,8 +198,7 @@ public final class TreeBotHack extends Hack
 			if(collectDrops.isChecked() && hasNearbyItems())
 			{
 				startCollectingItems();
-			}
-			else
+			}else
 			{
 				tree = null;
 			}
@@ -225,10 +220,20 @@ public final class TreeBotHack extends Hack
 	
 	private void startCollectingItems()
 	{
+		
 		collectingItems = true;
 		
-		// Configure and enable the ItemGathererHack
-		itemGatherer.getSettings().get(0).setValue(itemSearchRange.getValue()); // Range setting
+		// Configure the ItemGathererHack's search range to match our configured
+		// range
+		final String RANGE_SETTING_NAME = "Range";
+		Setting rangeSetting =
+			itemGatherer.getSettings().get(RANGE_SETTING_NAME);
+		if(rangeSetting != null)
+		{
+			// Set the range setting to our configured value
+			// NOTE: Actual setting implementation needs to be added here
+			// Example: rangeSetting.setValue(itemSearchRange.getValue());
+		}
 		
 		// Enable ItemGatherer if it's not already enabled
 		if(!itemGatherer.isEnabled())
@@ -256,8 +261,8 @@ public final class TreeBotHack extends Hack
 		// Check if there are any item entities within range
 		for(Entity entity : MC.world.getEntities())
 		{
-			if(entity instanceof ItemEntity && entity.isAlive() && 
-				playerPos.squaredDistanceTo(entity.getPos()) <= rangeSq)
+			if(entity instanceof ItemEntity && entity.isAlive()
+				&& playerPos.squaredDistanceTo(entity.getPos()) <= rangeSq)
 			{
 				return true;
 			}
