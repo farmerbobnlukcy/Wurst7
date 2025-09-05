@@ -17,6 +17,8 @@ import java.util.stream.Stream;
 
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.ItemEntity;
 import net.minecraft.util.Hand;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
@@ -31,8 +33,10 @@ import net.wurstclient.events.RenderListener;
 import net.wurstclient.events.UpdateListener;
 import net.wurstclient.hack.DontSaveState;
 import net.wurstclient.hack.Hack;
+import net.wurstclient.hacks.itemgatherer.ItemGathererHack;
 import net.wurstclient.hacks.treebot.Tree;
 import net.wurstclient.hacks.treebot.TreeBotUtils;
+import net.wurstclient.settings.CheckboxSetting;
 import net.wurstclient.settings.FacingSetting;
 import net.wurstclient.settings.SliderSetting;
 import net.wurstclient.settings.SliderSetting.ValueDisplay;
@@ -66,10 +70,23 @@ public final class TreeBotHack extends Hack
 	private final SwingHandSetting swingHand =
 		new SwingHandSetting(this, SwingHand.SERVER);
 	
+	private final CheckboxSetting collectDrops = new CheckboxSetting(
+		"Collect Drops",
+		"When enabled, TreeBot will collect dropped items after cutting a tree.", 
+		true);
+	
+	private final SliderSetting itemSearchRange = new SliderSetting(
+		"Item Search Range", 
+		"How far TreeBot will search for dropped items after cutting a tree.",
+		16, 4, 32, 1, ValueDisplay.INTEGER);
+	
 	private TreeFinder treeFinder;
 	private AngleFinder angleFinder;
 	private TreeBotPathProcessor processor;
 	private Tree tree;
+	
+	private boolean collectingItems = false;
+	private ItemGathererHack itemGatherer;
 	
 	private BlockPos currentBlock;
 	private final OverlayRenderer overlay = new OverlayRenderer();
@@ -86,6 +103,9 @@ public final class TreeBotHack extends Hack
 	@Override
 	public String getRenderName()
 	{
+		if(collectingItems)
+			return getName() + " [Collecting]";
+		
 		if(treeFinder != null && !treeFinder.isDone() && !treeFinder.isFailed())
 			return getName() + " [Searching]";
 		
@@ -102,6 +122,10 @@ public final class TreeBotHack extends Hack
 	protected void onEnable()
 	{
 		treeFinder = new TreeFinder();
+		collectingItems = false;
+		
+		// Get a reference to the ItemGathererHack
+		itemGatherer = WURST.getHax().itemGathererHack;
 		
 		EVENTS.add(UpdateListener.class, this);
 		EVENTS.add(RenderListener.class, this);
@@ -118,6 +142,11 @@ public final class TreeBotHack extends Hack
 		angleFinder = null;
 		processor = null;
 		tree = null;
+		collectingItems = false;
+		
+		// Make sure the ItemGathererHack is disabled when we disable TreeBot
+		if(itemGatherer != null && itemGatherer.isEnabled())
+			itemGatherer.setEnabled(false);
 		
 		if(currentBlock != null)
 		{
@@ -132,6 +161,27 @@ public final class TreeBotHack extends Hack
 	@Override
 	public void onUpdate()
 	{
+		// If we're in collecting mode, handle item gathering
+		if(collectingItems)
+		{
+			// If the user has disabled item gathering, move on
+			if(!collectDrops.isChecked())
+			{
+				finishCollectingItems();
+				return;
+			}
+			
+			// If there are no nearby items or ItemGatherer has finished
+			if(!hasNearbyItems() || !itemGatherer.isEnabled())
+			{
+				finishCollectingItems();
+				return;
+			}
+			
+			// Otherwise, continue collecting
+			return;
+		}
+		
 		if(treeFinder != null)
 		{
 			goToTree();
@@ -148,7 +198,15 @@ public final class TreeBotHack extends Hack
 		
 		if(tree.getLogs().isEmpty())
 		{
-			tree = null;
+			// If tree is done, try to collect drops if setting is enabled
+			if(collectDrops.isChecked() && hasNearbyItems())
+			{
+				startCollectingItems();
+			}
+			else
+			{
+				tree = null;
+			}
 			return;
 		}
 		
@@ -163,6 +221,49 @@ public final class TreeBotHack extends Hack
 		
 		if(angleFinder == null)
 			angleFinder = new AngleFinder();
+	}
+	
+	private void startCollectingItems()
+	{
+		collectingItems = true;
+		
+		// Configure and enable the ItemGathererHack
+		itemGatherer.getSettings().get(0).setValue(itemSearchRange.getValue()); // Range setting
+		
+		// Enable ItemGatherer if it's not already enabled
+		if(!itemGatherer.isEnabled())
+			itemGatherer.setEnabled(true);
+	}
+	
+	private void finishCollectingItems()
+	{
+		collectingItems = false;
+		
+		// Disable ItemGatherer if it's enabled
+		if(itemGatherer.isEnabled())
+			itemGatherer.setEnabled(false);
+		
+		// Reset tree to start looking for a new one
+		tree = null;
+	}
+	
+	private boolean hasNearbyItems()
+	{
+		ClientPlayerEntity player = MC.player;
+		double rangeSq = itemSearchRange.getValueSq();
+		Vec3d playerPos = player.getPos();
+		
+		// Check if there are any item entities within range
+		for(Entity entity : MC.world.getEntities())
+		{
+			if(entity instanceof ItemEntity && entity.isAlive() && 
+				playerPos.squaredDistanceTo(entity.getPos()) <= rangeSq)
+			{
+				return true;
+			}
+		}
+		
+		return false;
 	}
 	
 	private void goToTree()
