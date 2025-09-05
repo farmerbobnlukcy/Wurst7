@@ -24,6 +24,8 @@ import net.wurstclient.WurstClient;
 import net.wurstclient.event.EventManager;
 import net.wurstclient.events.UpdateListener;
 import net.wurstclient.hacks.*;
+import net.wurstclient.hacks.flowerbot.FlowerPickerHack;
+import net.wurstclient.hacks.itemgatherer.ItemGathererHack;
 import net.wurstclient.util.json.JsonException;
 
 public final class HackList implements UpdateListener
@@ -189,9 +191,10 @@ public final class HackList implements UpdateListener
 	public final TunnellerHack tunnellerHack = new TunnellerHack();
 	public final VeinMinerHack veinMinerHack = new VeinMinerHack();
 	public final XRayHack xRayHack = new XRayHack();
-	
+	public final FlowerPickerHack flowerBot = new FlowerPickerHack();
 	private final TreeMap<String, Hack> hax =
 		new TreeMap<>(String::compareToIgnoreCase);
+	public final ItemGathererHack itemGathererHack = new ItemGathererHack();
 	
 	private final EnabledHacksFile enabledHacksFile;
 	private final Path profilesFolder =

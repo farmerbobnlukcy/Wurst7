@@ -132,7 +132,7 @@ public final class TriggerBotHack extends Hack implements UpdateListener,
 			// this.clickTimer = 0; // <-- if such a field exists in your class
 			// this.nextClickTime = 0;
 			
-			return;
+			onDisable();
 			// do nothing while AFK
 		}
 	}
@@ -169,7 +169,7 @@ public final class TriggerBotHack extends Hack implements UpdateListener,
 			IKeyBinding.get(MC.options.attackKey).simulatePress(false);
 			simulatingMouseClick = false;
 		}
-		
+		ClientAfkState.set(false);
 		EVENTS.remove(PreMotionListener.class, this);
 		EVENTS.remove(HandleInputListener.class, this);
 		

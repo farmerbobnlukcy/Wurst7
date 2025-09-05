@@ -33,7 +33,8 @@ public class DisconnectedScreenMixin extends Screen
 {
 	private int autoReconnectTimer;
 	private ButtonWidget autoReconnectButton;
-	
+	private int maxRetries = 0;
+	private int reconnectCount = 0;
 	@Shadow
 	@Final
 	private DisconnectionInfo info;
@@ -91,8 +92,10 @@ public class DisconnectedScreenMixin extends Screen
 		AutoReconnectHack autoReconnect =
 			WurstClient.INSTANCE.getHax().autoReconnectHack;
 		
-		if(autoReconnect.isEnabled())
+		if(autoReconnect.isEnabled()){
 			autoReconnectTimer = autoReconnect.getWaitTicks();
+			maxRetries = autoReconnect.getMaxRetries();
+		}
 	}
 	
 	private void pressAutoReconnect()
@@ -102,8 +105,11 @@ public class DisconnectedScreenMixin extends Screen
 		
 		autoReconnect.setEnabled(!autoReconnect.isEnabled());
 		
-		if(autoReconnect.isEnabled())
+		if(autoReconnect.isEnabled()){
 			autoReconnectTimer = autoReconnect.getWaitTicks();
+		maxRetries = autoReconnect.getMaxRetries();
+		reconnectCount = 0;
+		}
 	}
 	
 	@Override
@@ -120,6 +126,14 @@ public class DisconnectedScreenMixin extends Screen
 			autoReconnectButton.setMessage(Text.literal("AutoReconnect"));
 			return;
 		}
+		if(reconnectCount >= maxRetries)
+		{
+			autoReconnectButton.setMessage(Text.literal("Max retries reached"));
+			autoReconnect.setEnabled(false);
+			return;
+		}
+		
+		
 		
 		autoReconnectButton.setMessage(Text.literal("AutoReconnect ("
 			+ (int)Math.ceil(autoReconnectTimer / 20.0) + ")"));
@@ -129,7 +143,7 @@ public class DisconnectedScreenMixin extends Screen
 			autoReconnectTimer--;
 			return;
 		}
-		
+		reconnectCount++;
 		LastServerRememberer.reconnect(parent);
 	}
 }
