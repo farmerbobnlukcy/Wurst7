@@ -10,6 +10,7 @@ package net.wurstclient.hacks.itemgatherer;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import net.minecraft.client.network.ClientPlayerEntity;
@@ -17,6 +18,7 @@ import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.ItemEntity;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 import net.wurstclient.Category;
 import net.wurstclient.SearchTags;
@@ -33,6 +35,7 @@ import net.wurstclient.settings.CheckboxSetting;
 import net.wurstclient.settings.SliderSetting;
 import net.wurstclient.settings.SliderSetting.ValueDisplay;
 import net.wurstclient.util.BlockUtils;
+import net.wurstclient.util.ClientAfkState;
 import net.wurstclient.util.RenderUtils;
 
 @SearchTags({"item gatherer", "loot finder", "collector"})
@@ -115,116 +118,167 @@ public final class ItemGathererHack extends Hack
 	}
 	
 	@Override
-	public void onUpdate()
-	{
-		// Find suitable target if we don't have one
-		if(targetItem == null || !targetItem.isAlive())
-		{
-			targetItem = findBestItemToGet();
-			pathFinder = null;
-			processor = null;
-			
-			if(targetItem == null)
-				return;
-		}
-		
-		Vec3d playerPos = MC.player.getPos();
-		Vec3d targetPos = targetItem.getPos();
-		
-		// Check if we're already close enough to grab the item
-		double distanceSq = playerPos.squaredDistanceTo(targetPos);
-		if(distanceSq <= minDistance.getValueSq())
-		{
-			targetItem = null;
-			pathFinder = null;
-			processor = null;
-			return;
-		}
-		
-		// Initialize pathfinder
-		if(pathFinder == null)
-		{
-			pathFinder = new ItemPathFinder(targetItem);
-			return;
-		}
-		
-		// Continue finding path
-		if(!pathFinder.isDone() && !pathFinder.isFailed())
-		{
-			PathProcessor.lockControls();
-			pathFinder.think();
-			return;
-		}
-		
-		// Process path
-		if(!pathFinder.isFailed())
-		{
-			if(processor == null)
-			{
-				pathFinder.formatPath();
-				processor = pathFinder.getProcessor();
-			}
-			
-			if(!processor.isDone())
-			{
-				processor.process();
-				return;
-			}
-		}
-		
-		// Reset if path failed or processing is done
-		pathFinder = null;
-		processor = null;
-		
-		// Check if target is still valid
-		if(!targetItem.isAlive() || playerPos.squaredDistanceTo(targetPos) > range.getValueSq())
-			targetItem = null;
-	}
+public void onUpdate()
+{
+    // Check if we're in AFK mode
+    if(ClientAfkState.isAfk())
+    {
+        // Clean up current operation if we're AFK
+        PathProcessor.releaseControls();
+        targetItem = null;
+        pathFinder = null;
+        processor = null;
+        return;
+    }
+    
+    // Find suitable target if we don't have one
+    if(targetItem == null || !targetItem.isAlive())
+    {
+        targetItem = findBestItemToGet();
+        pathFinder = null;
+        processor = null;
+        
+        if(targetItem == null)
+            return;
+    }
+    
+    Vec3d playerPos = MC.player.getPos();
+    Vec3d targetPos = targetItem.getPos();
+    
+    // Check if we're already close enough to grab the item
+    double distanceSq = playerPos.squaredDistanceTo(targetPos);
+    if(distanceSq <= minDistance.getValueSq())
+    {
+        targetItem = null;
+        pathFinder = null;
+        processor = null;
+        return;
+    }
+    
+    // Initialize pathfinder
+    if(pathFinder == null)
+    {
+        pathFinder = new ItemPathFinder(targetItem);
+        return;
+    }
+    
+    // Continue finding path
+    if(!pathFinder.isDone() && !pathFinder.isFailed())
+    {
+        PathProcessor.lockControls();
+        pathFinder.think();
+        return;
+    }
+    
+    // Process path
+    if(!pathFinder.isFailed())
+    {
+        if(processor == null)
+        {
+            pathFinder.formatPath();
+            processor = pathFinder.getProcessor();
+        }
+        
+        if(!processor.isDone())
+        {
+            processor.process();
+            return;
+        }
+    }
+    
+    // Reset if path failed or processing is done
+    pathFinder = null;
+    processor = null;
+    
+    // Check if target is still valid
+    if(!targetItem.isAlive() || playerPos.squaredDistanceTo(targetPos) > range.getValueSq())
+        targetItem = null;
+}
 	
 	private ItemEntity findBestItemToGet()
 	{
-		ClientPlayerEntity player = MC.player;
-		double rangeSq = range.getValueSq();
-		Vec3d playerPos = player.getPos();
-		double priorityDistanceSq = priorityDistance.getValueSq();
-		
-		// Get all item entities within range
-		Stream<ItemEntity> itemsStream = MC.world.getEntities()
-				.stream()
-				.filter(e -> e instanceof ItemEntity)
-				.map(e -> (ItemEntity)e)
-				.filter(e -> e.isAlive() && playerPos.squaredDistanceTo(e.getPos()) <= rangeSq);
-		
-		// Apply filters if filter mode is enabled
-		if(filterMode.isChecked())
-		{
-			// Implement your item filtering logic here
-			// For example, check against a list of allowed item names
-			// This is where you'd load from itemfilters.json
-		}
-		
-		// Find the closest item to prioritize
-		ItemEntity closestItem = itemsStream
-				.min(Comparator.comparingDouble(e -> playerPos.squaredDistanceTo(e.getPos())))
-				.orElse(null);
-		
-		if(closestItem == null)
-			return null;
-		
-		// If the closest item is within priority distance, return it
-		if(playerPos.squaredDistanceTo(closestItem.getPos()) <= priorityDistanceSq)
-			return closestItem;
-		
-		// Otherwise, prioritize items that are more valuable
-		// This is a simple example - you might want more sophisticated item value logic
-		return MC.world.getEntities()
-				.stream()
-				.filter(e -> e instanceof ItemEntity)
-				.map(e -> (ItemEntity)e)
-				.filter(e -> e.isAlive() && playerPos.squaredDistanceTo(e.getPos()) <= rangeSq)
-				.max(Comparator.comparing(e -> getItemValue(e)))
-				.orElse(closestItem);
-	}
+    ClientPlayerEntity player = MC.player;
+    double rangeSq = range.getValueSq();
+    Vec3d playerPos = player.getPos();
+    double priorityDistanceSq = priorityDistance.getValueSq();
+    
+    // Check for AFK state
+    if(ClientAfkState.isAfk())
+        return null;
+    
+    // Collect all item entities within range
+    ArrayList<ItemEntity> itemsInRange = new ArrayList<>();
+    for(Entity entity : MC.world.getEntities())
+    {
+        if(!(entity instanceof ItemEntity))
+            continue;
+            
+        ItemEntity item = (ItemEntity)entity;
+        if(!item.isAlive())
+            continue;
+            
+        if(playerPos.squaredDistanceTo(item.getPos()) > rangeSq)
+            continue;
+            
+        itemsInRange.add(item);
+    }
+    
+    // If no items found, return null
+    if(itemsInRange.isEmpty())
+        return null;
+    
+    // Apply filters if filter mode is enabled
+    if(filterMode.isChecked())
+    {
+        // TODO: Implement item filtering
+        // Example implementation:
+        // ArrayList<ItemEntity> filteredItems = new ArrayList<>();
+        // for(ItemEntity item : itemsInRange)
+        // {
+        //     if(isAllowedItem(item))
+        //         filteredItems.add(item);
+        // }
+        // itemsInRange = filteredItems;
+    }
+    
+    // If after filtering no items remain, return null
+    if(itemsInRange.isEmpty())
+        return null;
+    
+    // Find the closest item to prioritize
+    ItemEntity closestItem = null;
+    double closestDistSq = Double.MAX_VALUE;
+    
+    for(ItemEntity item : itemsInRange)
+    {
+        double distSq = playerPos.squaredDistanceTo(item.getPos());
+        if(distSq < closestDistSq)
+        {
+            closestDistSq = distSq;
+            closestItem = item;
+        }
+    }
+    
+    // If the closest item is within priority distance, return it
+    if(closestItem != null && closestDistSq <= priorityDistanceSq)
+        return closestItem;
+    
+    // Otherwise, prioritize items that are more valuable
+    ItemEntity mostValuableItem = null;
+    int highestValue = -1;
+    
+    for(ItemEntity item : itemsInRange)
+    {
+        int value = getItemValue(item);
+        if(value > highestValue)
+        {
+            highestValue = value;
+            mostValuableItem = item;
+        }
+    }
+    
+    return mostValuableItem != null ? mostValuableItem : closestItem;
+}
 	
 	private int getItemValue(ItemEntity entity)
 	{
@@ -258,7 +312,8 @@ public final class ItemGathererHack extends Hack
 			double z = targetItem.prevZ + (targetItem.getZ() - targetItem.prevZ) * partialTicks;
 			
 			Vec3d pos = new Vec3d(x, y, z);
-			RenderUtils.drawBoxAround(matrixStack, pos, 0.5, 0xFFFFFF00, true);
+			Box box = new Box(pos, pos).expand(0.5);
+			RenderUtils.drawOutlinedBox(matrixStack, box, 0xFFFFFF00, true);
 		}
 		
 		// Update and render all items within range
@@ -274,28 +329,38 @@ public final class ItemGathererHack extends Hack
 			double z = item.prevZ + (item.getZ() - item.prevZ) * partialTicks;
 			
 			Vec3d pos = new Vec3d(x, y, z);
-			RenderUtils.drawBoxAround(matrixStack, pos, 0.25, 0x7700FF00, true);
+			Box box = new Box(pos, pos).expand(0.25);
+			RenderUtils.drawOutlinedBox(matrixStack, box, 0x7700FF00, true);
 		}
 	}
 	
 	private void updateItemsToRender()
-	{
-		itemsToRender.clear();
-		
-		ClientPlayerEntity player = MC.player;
-		double rangeSq = range.getValueSq();
-		Vec3d playerPos = player.getPos();
-		
-		List<Entity> entities = MC.world.getEntities();
-		for(Entity entity : entities)
-		{
-			if(entity instanceof ItemEntity item && item.isAlive() &&
-					playerPos.squaredDistanceTo(item.getPos()) <= rangeSq)
-			{
-				itemsToRender.add(item);
-			}
-		}
-	}
+{
+    itemsToRender.clear();
+    
+    // Check if player is null (can happen during world loading)
+    if(MC.player == null || MC.world == null)
+        return;
+    
+    ClientPlayerEntity player = MC.player;
+    double rangeSq = range.getValueSq();
+    Vec3d playerPos = player.getPos();
+    
+    for(Entity entity : MC.world.getEntities())
+    {
+        if(!(entity instanceof ItemEntity))
+            continue;
+            
+        ItemEntity item = (ItemEntity)entity;
+        if(!item.isAlive())
+            continue;
+            
+        if(playerPos.squaredDistanceTo(item.getPos()) > rangeSq)
+            continue;
+            
+        itemsToRender.add(item);
+    }
+}
 	
 	private class ItemPathFinder extends PathFinder
 	{
