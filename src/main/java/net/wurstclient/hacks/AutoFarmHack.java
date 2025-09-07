@@ -43,7 +43,7 @@ import net.wurstclient.util.InventoryUtils;
 import net.wurstclient.util.OverlayRenderer;
 import net.wurstclient.util.RotationUtils;
 
-@SearchTags({"auto farm", "AutoHarvest", "auto harvest"})
+@SearchTags({"auto farm", "crop", "AutoHarvest", "auto harvest"})
 public final class AutoFarmHack extends Hack
 	implements UpdateListener, RenderListener
 {

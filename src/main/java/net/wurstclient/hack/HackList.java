@@ -52,6 +52,7 @@ public final class HackList implements UpdateListener
 	public final AutoLibrarianHack autoLibrarianHack = new AutoLibrarianHack();
 	public final AutoEatHack autoEatHack = new AutoEatHack();
 	public final AutoFarmHack autoFarmHack = new AutoFarmHack();
+	private final AutoFlowerHack autoFlowerHack = new AutoFlowerHack();
 	public final AutoFishHack autoFishHack = new AutoFishHack();
 	public final AutoMineHack autoMineHack = new AutoMineHack();
 	public final AutoPotionHack autoPotionHack = new AutoPotionHack();
@@ -64,6 +65,7 @@ public final class HackList implements UpdateListener
 	public final AutoSwimHack autoSwimHack = new AutoSwimHack();
 	public final AutoSwitchHack autoSwitchHack = new AutoSwitchHack();
 	public final AutoSwordHack autoSwordHack = new AutoSwordHack();
+	public final AutoPlantHack autoPlantHack = new AutoPlantHack();
 	public final AutoToolHack autoToolHack = new AutoToolHack();
 	public final AutoTotemHack autoTotemHack = new AutoTotemHack();
 	public final AutoWalkHack autoWalkHack = new AutoWalkHack();
@@ -101,6 +103,7 @@ public final class HackList implements UpdateListener
 	public final FightBotHack fightBotHack = new FightBotHack();
 	public final FishHack fishHack = new FishHack();
 	public final FlightHack flightHack = new FlightHack();
+	public final FlowerPickerHack flowerPickerHack = new FlowerPickerHack();
 	public final FollowHack followHack = new FollowHack();
 	public final ForceOpHack forceOpHack = new ForceOpHack();
 	public final FreecamHack freecamHack = new FreecamHack();
@@ -115,6 +118,7 @@ public final class HackList implements UpdateListener
 	public final InstantBunkerHack instantBunkerHack = new InstantBunkerHack();
 	public final InvWalkHack invWalkHack = new InvWalkHack();
 	public final ItemEspHack itemEspHack = new ItemEspHack();
+	public final ItemGathererHack itemGathererHack = new ItemGathererHack();
 	public final ItemGeneratorHack itemGeneratorHack = new ItemGeneratorHack();
 	public final JesusHack jesusHack = new JesusHack();
 	public final JetpackHack jetpackHack = new JetpackHack();
@@ -158,6 +162,8 @@ public final class HackList implements UpdateListener
 	public final PlayerEspHack playerEspHack = new PlayerEspHack();
 	public final PortalEspHack portalEspHack = new PortalEspHack();
 	public final PortalGuiHack portalGuiHack = new PortalGuiHack();
+	public final PositionHistoryHack positionHistoryHack =
+		new PositionHistoryHack();
 	public final PotionSaverHack potionSaverHack = new PotionSaverHack();
 	public final ProphuntEspHack prophuntEspHack = new ProphuntEspHack();
 	public final ProtectHack protectHack = new ProtectHack();
@@ -191,15 +197,12 @@ public final class HackList implements UpdateListener
 	public final TunnellerHack tunnellerHack = new TunnellerHack();
 	public final VeinMinerHack veinMinerHack = new VeinMinerHack();
 	public final XRayHack xRayHack = new XRayHack();
-	public final FlowerPickerHack flowerBot = new FlowerPickerHack();
 	private final TreeMap<String, Hack> hax =
 		new TreeMap<>(String::compareToIgnoreCase);
-	public final ItemGathererHack itemGathererHack = new ItemGathererHack();
 	
 	private final EnabledHacksFile enabledHacksFile;
 	private final Path profilesFolder =
 		WurstClient.INSTANCE.getWurstFolder().resolve("enabled hacks");
-	
 	private final EventManager eventManager =
 		WurstClient.INSTANCE.getEventManager();
 	

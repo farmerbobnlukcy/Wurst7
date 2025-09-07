@@ -36,6 +36,9 @@ public final class CmdProcessor implements ChatOutputListener
 		if(!message.startsWith("."))
 			return;
 		
+		if(message.startsWith(".."))
+			return;
+		
 		event.cancel();
 		process(message.substring(1));
 	}

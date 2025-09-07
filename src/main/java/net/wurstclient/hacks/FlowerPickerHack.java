@@ -12,6 +12,8 @@ import java.util.function.Predicate;
 
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.ItemEntity;
 import net.minecraft.util.Hand;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
@@ -28,6 +30,7 @@ import net.wurstclient.hack.DontSaveState;
 import net.wurstclient.hack.Hack;
 import net.wurstclient.hacks.flowerbot.Flower;
 import net.wurstclient.hacks.flowerbot.FlowerPickerUtils;
+import net.wurstclient.settings.CheckboxSetting;
 import net.wurstclient.settings.FacingSetting;
 import net.wurstclient.settings.SliderSetting;
 import net.wurstclient.settings.SliderSetting.ValueDisplay;
@@ -39,7 +42,6 @@ import net.wurstclient.util.BlockUtils;
 import net.wurstclient.util.OverlayRenderer;
 
 @SearchTags({"flower picker", "flower bot"})
-
 @DontSaveState
 public final class FlowerPickerHack extends Hack
 	implements UpdateListener, RenderListener
@@ -66,6 +68,11 @@ public final class FlowerPickerHack extends Hack
 	private final SwingHandSetting swingHand =
 		new SwingHandSetting(this, SwingHand.SERVER);
 	
+	private final CheckboxSetting useItemGatherer = new CheckboxSetting(
+		"Use ItemGatherer",
+		"Automatically collect flower drops using the ItemGatherer. Will enable ItemGatherer when flowers are broken.",
+		true);
+	
 	private FlowerFinder flowerFinder;
 	private AngleFinder angleFinder;
 	private FlowerBotPathProcessor processor;
@@ -73,6 +80,10 @@ public final class FlowerPickerHack extends Hack
 	
 	private BlockPos currentBlock;
 	private final OverlayRenderer overlay = new OverlayRenderer();
+	private boolean wasItemGathererEnabled = false;
+	private int searchTimeoutCounter = 0; // Add timeout counter
+	private static final int SEARCH_TIMEOUT = 60; // Timeout after 3 seconds (60
+													// ticks)
 	
 	public FlowerPickerHack()
 	{
@@ -82,11 +93,17 @@ public final class FlowerPickerHack extends Hack
 		addSetting(searchRadius);
 		addSetting(facing);
 		addSetting(swingHand);
+		addSetting(useItemGatherer);
 	}
 	
 	@Override
 	public String getRenderName()
 	{
+		// Reset timeout counter if we're not searching
+		if(flowerFinder == null || flowerFinder.isDone()
+			|| flowerFinder.isFailed())
+			searchTimeoutCounter = 0;
+		
 		if(flowerFinder != null && !flowerFinder.isDone()
 			&& !flowerFinder.isFailed())
 			return getName() + " [Searching]";
@@ -105,6 +122,14 @@ public final class FlowerPickerHack extends Hack
 	{
 		flowerFinder = new FlowerFinder();
 		
+		// Remember if ItemGatherer was already enabled
+		if(!this.useItemGatherer.isChecked()
+			&& WURST.getHax().itemGathererHack.isEnabled())
+		{
+			wasItemGathererEnabled = true;
+			WURST.getHax().itemGathererHack.setEnabled(false);
+		}
+		wasItemGathererEnabled = WURST.getHax().itemGathererHack.isEnabled();
 		EVENTS.add(UpdateListener.class, this);
 		EVENTS.add(RenderListener.class, this);
 	}
@@ -128,12 +153,70 @@ public final class FlowerPickerHack extends Hack
 			currentBlock = null;
 		}
 		
+		// Disable ItemGatherer if we enabled it
+		if(useItemGatherer.isChecked() && !wasItemGathererEnabled
+			&& WURST.getHax().itemGathererHack.isEnabled())
+			WURST.getHax().itemGathererHack.setEnabled(false);
+		
 		overlay.resetProgress();
 	}
 	
 	@Override
 	public void onUpdate()
 	{
+		
+		// Check for nearby items to collect if ItemGatherer is enabled
+		if(useItemGatherer.isChecked())
+		{
+			
+			// Reset timeout counter if we're not searching
+			if(flowerFinder == null || flowerFinder.isDone()
+				|| flowerFinder.isFailed())
+				searchTimeoutCounter = 0;
+				
+			// Check for search timeout - force release controls if stuck
+			// searching too long
+			if(flowerFinder != null && !flowerFinder.isDoneOrFailed())
+			{
+				searchTimeoutCounter++;
+				if(searchTimeoutCounter > SEARCH_TIMEOUT)
+				{
+					PathProcessor.releaseControls();
+					flowerFinder = null;
+					searchTimeoutCounter = 0;
+					return;
+				}
+			}
+			
+			// Configure ItemGatherer
+			
+			if(!WURST.getHax().itemGathererHack.isEnabled())
+			{
+				if(shouldEnableItemGatherer())
+				{
+					// Enable ItemGatherer when we find items
+					WURST.getHax().itemGathererHack.setEnabled(true);
+					return;
+				}
+			}
+		}
+		// Rest of the onUpdate method remains unchanged
+		// Check for nearby items to collect if ItemGatherer is enabled
+		if(useItemGatherer.isChecked())
+		{
+			// Configure ItemGatherer
+			
+			if(!WURST.getHax().itemGathererHack.isEnabled())
+			{
+				if(shouldEnableItemGatherer())
+				{
+					// Enable ItemGatherer when we find items
+					WURST.getHax().itemGathererHack.setEnabled(true);
+					return;
+				}
+			}
+		}
+		
 		if(flowerFinder != null)
 		{
 			goToFlower();
@@ -168,6 +251,37 @@ public final class FlowerPickerHack extends Hack
 			angleFinder = new AngleFinder();
 	}
 	
+	private boolean shouldEnableItemGatherer()
+	{
+		Vec3d playerPos = MC.player.getPos();
+		
+		// Look for dropped items that are likely from flowers
+		for(Entity entity : MC.world.getEntities())
+		{
+			if(!(entity instanceof ItemEntity))
+				continue;
+			
+			ItemEntity item = (ItemEntity)entity;
+			if(!item.isAlive())
+				continue;
+			
+			String itemName = item.getStack().getItem().toString();
+			if(isFlowerItem(itemName))
+				return true;
+		}
+		
+		return false;
+	}
+	
+	private boolean isFlowerItem(String itemName)
+	{
+		// Check if the item is likely a flower drop
+		return itemName.contains("flower") || itemName.contains("petal")
+			|| itemName.contains("tulip") || itemName.contains("daisy")
+			|| itemName.contains("dandelion") || itemName.contains("poppy")
+			|| itemName.contains("orchid") || itemName.contains("allium");
+	}
+	
 	private void goToFlower()
 	{
 		// find path
@@ -184,7 +298,22 @@ public final class FlowerPickerHack extends Hack
 			processor.goToGoal();
 			return;
 		}
+		// If path finding failed, release controls and reset
+		if(flowerFinder.isFailed())
+		{
+			PathProcessor.releaseControls();
+			flowerFinder = null;
+			return;
+		}
 		
+		// process path
+		if(processor != null && !processor.isDone())
+		{
+			processor.goToGoal();
+			return;
+		}
+		
+		// Always release controls when we're done with the path
 		PathProcessor.releaseControls();
 		flowerFinder = null;
 	}
@@ -196,6 +325,14 @@ public final class FlowerPickerHack extends Hack
 		{
 			PathProcessor.lockControls();
 			angleFinder.findPath();
+			return;
+		}
+		
+		// If path finding failed, release controls and reset
+		if(angleFinder.isFailed())
+		{
+			PathProcessor.releaseControls();
+			angleFinder = null;
 			return;
 		}
 		
@@ -313,6 +450,8 @@ public final class FlowerPickerHack extends Hack
 			if(!pathFinder.isPathStillValid(processor.getIndex())
 				|| processor.getTicksOffPath() > 20)
 			{
+				// Release controls before resetting the path finder
+				PathProcessor.releaseControls();
 				pathFinder.reset();
 				return;
 			}
@@ -334,7 +473,9 @@ public final class FlowerPickerHack extends Hack
 		{
 			super(BlockPos.ofFloored(WurstClient.MC.player.getPos()));
 			searchRadiusValue = searchRadius.getValueI();
-			setThinkTime(1);
+			setThinkSpeed(256); // Reduced from 1024 to 256
+			setThinkTime(20); // Increased from 1 to 20
+			
 		}
 		
 		public FlowerFinder(FlowerBotPathFinder pathFinder)
@@ -347,7 +488,7 @@ public final class FlowerPickerHack extends Hack
 		protected boolean isMineable(BlockPos pos)
 		{
 			return false; // We don't want to break anything while pathfinding
-							// to flowers
+			// to flowers
 		}
 		
 		@Override
@@ -437,8 +578,9 @@ public final class FlowerPickerHack extends Hack
 		public AngleFinder()
 		{
 			super(BlockPos.ofFloored(WurstClient.MC.player.getPos()));
-			setThinkSpeed(512);
-			setThinkTime(1);
+			setThinkSpeed(256); // Reduced from 512 to 256
+			setThinkTime(20); // Increased from 1 to 20
+			
 		}
 		
 		public AngleFinder(FlowerBotPathFinder pathFinder)

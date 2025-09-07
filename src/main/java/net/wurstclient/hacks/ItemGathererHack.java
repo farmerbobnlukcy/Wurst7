@@ -1,4 +1,3 @@
-
 /*
  * Copyright (c) 2014-2025 Wurst-Imperium and contributors.
  *
@@ -41,37 +40,37 @@ import net.wurstclient.util.RenderUtils;
 @SearchTags({"item gatherer", "loot finder", "collector"})
 @DontSaveState
 public final class ItemGathererHack extends Hack
-		implements UpdateListener, RenderListener
+	implements UpdateListener, RenderListener
 {
 	private final SliderSetting range =
-			new SliderSetting("Range", "Maximum distance to search for items.", 32,
-					8, 64, 1, ValueDisplay.INTEGER);
+		new SliderSetting("Range", "Maximum distance to search for items.", 32,
+			8, 64, 1, ValueDisplay.INTEGER);
 	
 	private final SliderSetting minDistance = new SliderSetting("Min Distance",
-			"Minimum distance to items before considering the path complete.", 1.5,
-			0.5, 4, 0.1, ValueDisplay.DECIMAL);
+		"Minimum distance to items before considering the path complete.", 1.5,
+		0.5, 4, 0.1, ValueDisplay.DECIMAL);
 	
-	private final CheckboxSetting filterMode = new CheckboxSetting(
-			"Filter Mode",
+	private final CheckboxSetting filterMode =
+		new CheckboxSetting("Filter Mode",
 			"Only gather certain items (configured in the Item List).", false);
 	
 	private final ItemListSetting itemList = new ItemListSetting("Item List",
-			"Items that ItemGatherer will collect when Filter Mode is enabled.",
-			"minecraft:diamond", "minecraft:emerald", "minecraft:gold_ingot",
-			"minecraft:iron_ingot", "minecraft:netherite_ingot");
+		"Items that ItemGatherer will collect when Filter Mode is enabled.",
+		"minecraft:diamond", "minecraft:emerald", "minecraft:gold_ingot",
+		"minecraft:iron_ingot", "minecraft:netherite_ingot");
 	
 	private final CheckboxSetting stopWhenInventoryFull = new CheckboxSetting(
-			"Stop When Full",
-			"Automatically disables the hack when your inventory is full.", true);
+		"Stop When Full",
+		"Automatically disables the hack when your inventory is full.", true);
 	
 	private final SliderSetting maxAttempts = new SliderSetting("Max Attempts",
-			"Maximum number of pathfinding attempts before giving up on an item.",
-			5, 1, 10, 1, ValueDisplay.INTEGER);
+		"Maximum number of pathfinding attempts before giving up on an item.",
+		5, 1, 10, 1, ValueDisplay.INTEGER);
 	
 	private final SliderSetting priorityDistance = new SliderSetting(
-			"Priority Distance",
-			"Items closer than this distance (in blocks) will be prioritized over more distant items.",
-			8, 2, 16, 0.5, ValueDisplay.DECIMAL);
+		"Priority Distance",
+		"Items closer than this distance (in blocks) will be prioritized over more distant items.",
+		8, 2, 16, 0.5, ValueDisplay.DECIMAL);
 	
 	private ItemEntity targetItem;
 	private ItemPathFinder pathFinder;
@@ -101,7 +100,7 @@ public final class ItemGathererHack extends Hack
 	{
 		if(targetItem != null)
 			return getName() + " ["
-					+ targetItem.getStack().getItem().getName().getString() + "]";
+				+ targetItem.getStack().getItem().getName().getString() + "]";
 		
 		if(pathFinder != null && !pathFinder.isDone() && !pathFinder.isFailed())
 			return getName() + " [Searching]";
@@ -166,7 +165,8 @@ public final class ItemGathererHack extends Hack
 			if(!wasInventoryFullLastCheck)
 			{
 				wasInventoryFullLastCheck = true;
-				ChatUtils.message("§8[§6§lItemGatherer§8] §fInventory full, stopping.");
+				ChatUtils.message(
+					"§8[§6§lItemGatherer§8] §fInventory full, stopping.");
 				setEnabled(false);
 			}
 			return;
@@ -174,8 +174,8 @@ public final class ItemGathererHack extends Hack
 		wasInventoryFullLastCheck = false;
 		
 		// Find suitable target if we don't have one
-		if(targetItem == null || !targetItem.isAlive() ||
-				unreachableItems.contains(targetItem))
+		if(targetItem == null || !targetItem.isAlive()
+			|| unreachableItems.contains(targetItem))
 		{
 			// Reset attempt counter for new target
 			currentAttempts = 0;
@@ -189,7 +189,8 @@ public final class ItemGathererHack extends Hack
 			{
 				if(!unreachableItems.isEmpty())
 				{
-					ChatUtils.message("§8[§6§lItemGatherer§8] §fNo reachable items found, stopping.");
+					ChatUtils.message(
+						"§8[§6§lItemGatherer§8] §fNo reachable items found, stopping.");
 					setEnabled(false);
 				}
 				return;
@@ -238,8 +239,7 @@ public final class ItemGathererHack extends Hack
 				processor.process();
 				return;
 			}
-		}
-		else
+		}else
 		{
 			// Increment attempt counter when path fails
 			currentAttempts++;
@@ -247,9 +247,10 @@ public final class ItemGathererHack extends Hack
 			// If we've tried too many times, mark this item as unreachable
 			if(currentAttempts >= maxAttempts.getValueI())
 			{
-				ChatUtils.message("§8[§6§lItemGatherer§8] §fCouldn't reach " +
-						targetItem.getStack().getItem().getName().getString() +
-						" after " + maxAttempts.getValueI() + " attempts, skipping.");
+				ChatUtils.message("§8[§6§lItemGatherer§8] §fCouldn't reach "
+					+ targetItem.getStack().getItem().getName().getString()
+					+ " after " + maxAttempts.getValueI()
+					+ " attempts, skipping.");
 				
 				unreachableItems.add(targetItem);
 				targetItem = null;
@@ -261,8 +262,8 @@ public final class ItemGathererHack extends Hack
 		processor = null;
 		
 		// Check if target is still valid
-		if(targetItem != null && (!targetItem.isAlive() ||
-				playerPos.squaredDistanceTo(targetPos) > range.getValueSq()))
+		if(targetItem != null && (!targetItem.isAlive()
+			|| playerPos.squaredDistanceTo(targetPos) > range.getValueSq()))
 		{
 			targetItem = null;
 		}
@@ -394,8 +395,8 @@ public final class ItemGathererHack extends Hack
 		int count = entity.getStack().getCount();
 		
 		// Assign value based on item type - high value for rare items
-		if(item == Items.DIAMOND || item == Items.DIAMOND_BLOCK ||
-				item == Items.NETHERITE_INGOT || item == Items.NETHERITE_BLOCK)
+		if(item == Items.DIAMOND || item == Items.DIAMOND_BLOCK
+			|| item == Items.NETHERITE_INGOT || item == Items.NETHERITE_BLOCK)
 			return 1000 * count;
 		
 		if(item == Items.EMERALD || item == Items.EMERALD_BLOCK)
@@ -421,18 +422,18 @@ public final class ItemGathererHack extends Hack
 		PathCmd pathCmd = WurstClient.INSTANCE.getCmds().pathCmd;
 		if(pathFinder != null)
 			pathFinder.renderPath(matrixStack, pathCmd.isDebugMode(),
-					pathCmd.isDepthTest());
+				pathCmd.isDepthTest());
 		
 		// Highlight target item
 		if(targetItem != null && targetItem.isAlive())
 		{
 			// Calculate actual position with partial ticks for smooth rendering
 			double x = targetItem.prevX
-					+ (targetItem.getX() - targetItem.prevX) * partialTicks;
+				+ (targetItem.getX() - targetItem.prevX) * partialTicks;
 			double y = targetItem.prevY
-					+ (targetItem.getY() - targetItem.prevY) * partialTicks;
+				+ (targetItem.getY() - targetItem.prevY) * partialTicks;
 			double z = targetItem.prevZ
-					+ (targetItem.getZ() - targetItem.prevZ) * partialTicks;
+				+ (targetItem.getZ() - targetItem.prevZ) * partialTicks;
 			
 			Vec3d pos = new Vec3d(x, y, z);
 			Box box = new Box(pos, pos).expand(0.5);
@@ -453,7 +454,7 @@ public final class ItemGathererHack extends Hack
 				color = 0x77FF00FF; // Purple for unreachable items
 			else if(filterMode.isChecked() && !isAllowedItem(item))
 				color = 0x77FF0000; // Red for filtered-out items
-			
+				
 			// Calculate actual position with partial ticks for smooth rendering
 			double x = item.prevX + (item.getX() - item.prevX) * partialTicks;
 			double y = item.prevY + (item.getY() - item.prevY) * partialTicks;
@@ -515,7 +516,7 @@ public final class ItemGathererHack extends Hack
 		{
 			Vec3d playerPos = Vec3d.ofBottomCenter(current);
 			return done = playerPos
-					.squaredDistanceTo(target.getPos()) <= minDistance.getValueSq();
+				.squaredDistanceTo(target.getPos()) <= minDistance.getValueSq();
 		}
 		
 		@Override
