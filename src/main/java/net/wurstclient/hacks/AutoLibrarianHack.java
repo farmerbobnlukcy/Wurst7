@@ -76,7 +76,8 @@ public final class AutoLibrarianHack extends Hack
 		"minecraft:looting;3", "minecraft:mending;1", "minecraft:protection;4",
 		"minecraft:respiration;3", "minecraft:sharpness;5",
 		"minecraft:silk_touch;1", "minecraft:unbreaking;3");
-	
+	private final CheckboxSetting useMessages =
+		new CheckboxSetting("Use Messages", "test", false);
 	private final CheckboxSetting lockInTrade = new CheckboxSetting(
 		"Lock in trade",
 		"Automatically buys something from the villager once it has learned to"
@@ -105,7 +106,6 @@ public final class AutoLibrarianHack extends Hack
 	
 	private final SwingHandSetting swingHand =
 		new SwingHandSetting(this, SwingHand.SERVER);
-	
 	private final SliderSetting repairMode = new SliderSetting("Repair mode",
 		"Prevents AutoLibrarian from using your axe when its durability reaches"
 			+ " the given threshold, so you can repair it before it breaks.\n"
@@ -133,6 +133,7 @@ public final class AutoLibrarianHack extends Hack
 		addSetting(wantedBooks);
 		addSetting(lockInTrade);
 		addSetting(updateBooks);
+		addSetting(useMessages);
 		addSetting(range);
 		addSetting(facing);
 		addSetting(swingHand);
@@ -210,10 +211,14 @@ public final class AutoLibrarianHack extends Hack
 		int experience = tradeScreen.getScreenHandler().getExperience();
 		if(experience > 0)
 		{
-			ChatUtils.warning("Villager at "
-				+ villager.getBlockPos().toShortString()
-				+ " is already experienced, meaning it can't be trained anymore.");
-			ChatUtils.message("Looking for another villager...");
+			if(this.useMessages.isChecked())
+			{
+				ChatUtils.warning("Villager at "
+					+ villager.getBlockPos().toShortString()
+					+ " is already experienced, meaning it can't be trained anymore.");
+				ChatUtils.message("Looking for another villager...");
+				
+			}
 			experiencedVillagers.add(villager);
 			villager = null;
 			jobSite = null;
@@ -227,22 +232,32 @@ public final class AutoLibrarianHack extends Hack
 		
 		if(bookOffer == null)
 		{
-			ChatUtils.message("Villager is not selling an enchanted book.");
+			if(this.useMessages.isChecked())
+			{
+				ChatUtils.message("Villager is not selling an enchanted book.");
+			}
 			closeTradeScreen();
 			breakingJobSite = true;
 			System.out.println("Breaking job site...");
 			return;
 		}
 		
-		ChatUtils.message(
-			"Villager is selling " + bookOffer.getEnchantmentNameWithLevel()
-				+ " for " + bookOffer.getFormattedPrice() + ".");
-		
+		if(this.useMessages.isChecked())
+		{
+			ChatUtils.message(
+				"Villager is selling " + bookOffer.getEnchantmentNameWithLevel()
+					+ " for " + bookOffer.getFormattedPrice() + ".");
+			
+		}
 		// if wrong enchantment, break job site and start over
 		if(!wantedBooks.isWanted(bookOffer))
 		{
 			breakingJobSite = true;
-			System.out.println("Breaking job site...");
+			if(this.useMessages.isChecked())
+			{
+				
+				System.out.println("Breaking job site...");
+			}
 			closeTradeScreen();
 			return;
 		}
@@ -282,7 +297,10 @@ public final class AutoLibrarianHack extends Hack
 		
 		if(params == null || BlockUtils.getState(jobSite).isReplaceable())
 		{
-			System.out.println("Job site has been broken. Replacing...");
+			if(this.useMessages.isChecked())
+			{
+				System.out.println("Job site has been broken. Replacing...");
+			}
 			breakingJobSite = false;
 			placingJobSite = true;
 			return;
@@ -314,7 +332,7 @@ public final class AutoLibrarianHack extends Hack
 		{
 			if(BlockUtils.getBlock(jobSite) == Blocks.LECTERN)
 			{
-				System.out.println("Job site has been placed.");
+				// System.out.println("Job site has been placed.");
 				placingJobSite = false;
 				
 			}else
@@ -374,10 +392,27 @@ public final class AutoLibrarianHack extends Hack
 		if(MC.itemUseCooldown > 0)
 			return;
 		
+		executionCount++;
+		
+		if(maxTries.getValueI() > 0 && executionCount >= maxTries.getValueI())
+		{
+			ChatUtils.error("Max tries " + maxTries.getValueI()
+				+ " reached. Breaking and trying again.");
+			breakingJobSite = true;
+			placingJobSite = false;
+			return;
+		}
+		
 		if(executionCount >= maxTries.getValueI())
 		{
 			ChatUtils.error("Max tries " + maxTries.getValueI()
 				+ " reached. Breaking and trying again.");
+			breakingJobSite = true;
+			placingJobSite = false;
+			return;
+		}
+		if(executionCount > 100)
+		{
 			breakingJobSite = true;
 			placingJobSite = false;
 			return;

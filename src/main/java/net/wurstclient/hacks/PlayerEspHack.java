@@ -7,7 +7,11 @@
  */
 package net.wurstclient.hacks;
 
+import java.awt.Toolkit;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -23,9 +27,11 @@ import net.wurstclient.events.CameraTransformViewBobbingListener;
 import net.wurstclient.events.RenderListener;
 import net.wurstclient.events.UpdateListener;
 import net.wurstclient.hack.Hack;
+import net.wurstclient.settings.CheckboxSetting;
 import net.wurstclient.settings.EspBoxSizeSetting;
 import net.wurstclient.settings.EspStyleSetting;
 import net.wurstclient.settings.EspStyleSetting.EspStyle;
+import net.wurstclient.settings.SliderSetting;
 import net.wurstclient.settings.filterlists.EntityFilterList;
 import net.wurstclient.settings.filters.FilterInvisibleSetting;
 import net.wurstclient.settings.filters.FilterSleepingSetting;
@@ -46,11 +52,24 @@ public final class PlayerEspHack extends Hack implements UpdateListener,
 		"\u00a7lAccurate\u00a7r mode shows the exact hitbox of each player.\n"
 			+ "\u00a7lFancy\u00a7r mode shows slightly larger boxes that look better.");
 	
+	private final CheckboxSetting soundAlerts = new CheckboxSetting(
+		"Sound Alerts",
+		"Plays a system beep sound when players come within the alert distance.",
+		true);
+	
+	private final SliderSetting alertDistance = new SliderSetting(
+		"Alert Distance",
+		"Distance in blocks at which sound alerts will trigger for players.",
+		20, 5, 100, 1, SliderSetting.ValueDisplay.DECIMAL);
+	
 	private final EntityFilterList entityFilters = new EntityFilterList(
 		new FilterSleepingSetting("Won't show sleeping players.", false),
 		new FilterInvisibleSetting("Won't show invisible players.", false));
 	
 	private final ArrayList<PlayerEntity> players = new ArrayList<>();
+	
+	// Track player UUIDs we've already alerted about
+	private final Set<UUID> alertedPlayers = new HashSet<>();
 	
 	public PlayerEspHack()
 	{
@@ -58,6 +77,8 @@ public final class PlayerEspHack extends Hack implements UpdateListener,
 		setCategory(Category.RENDER);
 		addSetting(style);
 		addSetting(boxSize);
+		addSetting(soundAlerts);
+		addSetting(alertDistance);
 		entityFilters.forEach(this::addSetting);
 	}
 	
@@ -67,6 +88,9 @@ public final class PlayerEspHack extends Hack implements UpdateListener,
 		EVENTS.add(UpdateListener.class, this);
 		EVENTS.add(CameraTransformViewBobbingListener.class, this);
 		EVENTS.add(RenderListener.class, this);
+		
+		// Clear the alerted players set when the hack is enabled
+		alertedPlayers.clear();
 	}
 	
 	@Override
@@ -91,6 +115,41 @@ public final class PlayerEspHack extends Hack implements UpdateListener,
 		stream = entityFilters.applyTo(stream);
 		
 		players.addAll(stream.collect(Collectors.toList()));
+		
+		// Sound alert logic
+		if(soundAlerts.isChecked())
+		{
+			// Process sound alerts for each player
+			for(PlayerEntity player : players)
+			{
+				float distance = MC.player.distanceTo(player);
+				
+				// Check if player is within alert distance
+				if(distance <= alertDistance.getValueF())
+				{
+					// Check if we haven't alerted about this player yet
+					if(!alertedPlayers.contains(player.getUuid()))
+					{
+						// Play system beep
+						Toolkit.getDefaultToolkit().beep();
+						
+						// Add player to alerted set
+						alertedPlayers.add(player.getUuid());
+					}
+				}else
+				{
+					// If the player moves out of range, remove them from the
+					// alerted set
+					// so they'll trigger another alert if they come back in
+					// range
+					alertedPlayers.remove(player.getUuid());
+				}
+			}
+			
+			// Remove UUIDs of players who are no longer present
+			alertedPlayers.removeIf(uuid -> players.stream()
+				.noneMatch(p -> p.getUuid().equals(uuid)));
+		}
 	}
 	
 	@Override

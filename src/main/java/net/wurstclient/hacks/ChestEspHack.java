@@ -10,16 +10,22 @@ package net.wurstclient.hacks;
 import java.awt.Color;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
+import net.minecraft.block.BlockState;
+import net.minecraft.block.ChestBlock;
 import net.minecraft.block.entity.*;
+import net.minecraft.block.enums.ChestType;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.vehicle.ChestBoatEntity;
 import net.minecraft.entity.vehicle.ChestMinecartEntity;
 import net.minecraft.entity.vehicle.ChestRaftEntity;
 import net.minecraft.entity.vehicle.HopperMinecartEntity;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 import net.wurstclient.Category;
@@ -33,6 +39,7 @@ import net.wurstclient.hacks.chestesp.ChestEspGroup;
 import net.wurstclient.settings.CheckboxSetting;
 import net.wurstclient.settings.ColorSetting;
 import net.wurstclient.settings.EspStyleSetting;
+import net.wurstclient.util.BlockUtils;
 import net.wurstclient.util.RenderUtils;
 import net.wurstclient.util.chunk.ChunkUtils;
 
@@ -127,12 +134,24 @@ public class ChestEspHack extends Hack implements UpdateListener,
 	private final List<ChestEspEntityGroup> entityGroups =
 		Arrays.asList(chestCarts, chestBoats, hopperCarts);
 	
+	// List to track double chests for special handling
+	private final List<Box> doubleChestBoxes = new ArrayList<>();
+	private final Map<BlockPos, ChestBlockEntity> chestBlockEntities =
+		new HashMap<>();
+	
+	// Color for double chest tracers
+	private final ColorSetting doubleChestColor = new ColorSetting(
+		"Double chest color",
+		"Double chests will be highlighted in this color (tracers always enabled).",
+		new Color(255, 215, 0)); // Gold color
+	
 	public ChestEspHack()
 	{
 		super("ChestESP");
 		setCategory(Category.RENDER);
 		
 		addSetting(style);
+		addSetting(doubleChestColor);
 		groups.stream().flatMap(ChestEspGroup::getSettings)
 			.forEach(this::addSetting);
 	}
@@ -153,23 +172,42 @@ public class ChestEspHack extends Hack implements UpdateListener,
 		EVENTS.remove(RenderListener.class, this);
 		
 		groups.forEach(ChestEspGroup::clear);
+		doubleChestBoxes.clear();
+		chestBlockEntities.clear();
 	}
 	
 	@Override
 	public void onUpdate()
 	{
 		groups.forEach(ChestEspGroup::clear);
+		doubleChestBoxes.clear();
+		chestBlockEntities.clear();
 		
 		ArrayList<BlockEntity> blockEntities =
 			ChunkUtils.getLoadedBlockEntities()
 				.collect(Collectors.toCollection(ArrayList::new));
 		
+		// First pass - collect all chest entities
 		for(BlockEntity blockEntity : blockEntities)
+		{
+			if(blockEntity instanceof ChestBlockEntity)
+				chestBlockEntities.put(blockEntity.getPos(),
+					(ChestBlockEntity)blockEntity);
+		}
+		
+		// Second pass - identify double chests and add all entities to their
+		// groups
+		for(BlockEntity blockEntity : blockEntities)
+		{
 			if(blockEntity instanceof TrappedChestBlockEntity)
+			{
 				trapChests.add(blockEntity);
-			else if(blockEntity instanceof ChestBlockEntity)
+				findAndAddDoubleChest(blockEntity);
+			}else if(blockEntity instanceof ChestBlockEntity)
+			{
 				basicChests.add(blockEntity);
-			else if(blockEntity instanceof EnderChestBlockEntity)
+				findAndAddDoubleChest(blockEntity);
+			}else if(blockEntity instanceof EnderChestBlockEntity)
 				enderChests.add(blockEntity);
 			else if(blockEntity instanceof ShulkerBoxBlockEntity)
 				shulkerBoxes.add(blockEntity);
@@ -187,7 +225,8 @@ public class ChestEspHack extends Hack implements UpdateListener,
 				crafters.add(blockEntity);
 			else if(blockEntity instanceof AbstractFurnaceBlockEntity)
 				furnaces.add(blockEntity);
-			
+		}
+		
 		for(Entity entity : MC.world.getEntities())
 			if(entity instanceof ChestMinecartEntity)
 				chestCarts.add(entity);
@@ -198,12 +237,45 @@ public class ChestEspHack extends Hack implements UpdateListener,
 				chestBoats.add(entity);
 	}
 	
+	private void findAndAddDoubleChest(BlockEntity be)
+	{
+		if(!(be instanceof ChestBlockEntity chestBE))
+			return;
+		
+		BlockState state = chestBE.getCachedState();
+		if(!state.contains(ChestBlock.CHEST_TYPE))
+			return;
+		
+		ChestType chestType = state.get(ChestBlock.CHEST_TYPE);
+		
+		// Only process one part of a double chest
+		if(chestType == ChestType.RIGHT)
+		{
+			BlockPos pos = chestBE.getPos();
+			
+			// Check if it's a double chest
+			if(chestType != ChestType.SINGLE)
+			{
+				BlockPos otherPos = pos.offset(ChestBlock.getFacing(state));
+				
+				if(BlockUtils.canBeClicked(otherPos))
+				{
+					Box box = BlockUtils.getBoundingBox(pos);
+					Box box2 = BlockUtils.getBoundingBox(otherPos);
+					Box doubleBox = box.union(box2);
+					doubleChestBoxes.add(doubleBox);
+				}
+			}
+		}
+	}
+	
 	@Override
 	public void onCameraTransformViewBobbing(
 		CameraTransformViewBobbingEvent event)
 	{
-		if(style.hasLines())
-			event.cancel();
+		// We need to disable view bobbing even if style doesn't have lines
+		// because we'll always have tracer lines for double chests
+		event.cancel();
 	}
 	
 	@Override
@@ -217,6 +289,9 @@ public class ChestEspHack extends Hack implements UpdateListener,
 		
 		if(style.hasLines())
 			renderTracers(matrixStack, partialTicks);
+		
+		// Always render tracers for double chests
+		renderDoubleChestTracers(matrixStack, partialTicks);
 	}
 	
 	private void renderBoxes(MatrixStack matrixStack)
@@ -234,6 +309,18 @@ public class ChestEspHack extends Hack implements UpdateListener,
 			RenderUtils.drawOutlinedBoxes(matrixStack, boxes, linesColor,
 				false);
 		}
+		
+		// Render double chest boxes with special color
+		if(!doubleChestBoxes.isEmpty())
+		{
+			int quadsColor = doubleChestColor.getColorI(0x40);
+			int linesColor = doubleChestColor.getColorI(0x80);
+			
+			RenderUtils.drawSolidBoxes(matrixStack, doubleChestBoxes,
+				quadsColor, false);
+			RenderUtils.drawOutlinedBoxes(matrixStack, doubleChestBoxes,
+				linesColor, false);
+		}
 	}
 	
 	private void renderTracers(MatrixStack matrixStack, float partialTicks)
@@ -250,5 +337,18 @@ public class ChestEspHack extends Hack implements UpdateListener,
 			RenderUtils.drawTracers(matrixStack, partialTicks, ends, color,
 				false);
 		}
+	}
+	
+	private void renderDoubleChestTracers(MatrixStack matrixStack,
+		float partialTicks)
+	{
+		if(doubleChestBoxes.isEmpty())
+			return;
+		
+		List<Vec3d> ends =
+			doubleChestBoxes.stream().map(Box::getCenter).toList();
+		int color = doubleChestColor.getColorI(0x80);
+		
+		RenderUtils.drawTracers(matrixStack, partialTicks, ends, color, false);
 	}
 }

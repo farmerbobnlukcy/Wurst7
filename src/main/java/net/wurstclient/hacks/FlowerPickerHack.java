@@ -123,13 +123,7 @@ public final class FlowerPickerHack extends Hack
 		flowerFinder = new FlowerFinder();
 		
 		// Remember if ItemGatherer was already enabled
-		if(!this.useItemGatherer.isChecked()
-			&& WURST.getHax().itemGathererHack.isEnabled())
-		{
-			wasItemGathererEnabled = true;
-			WURST.getHax().itemGathererHack.setEnabled(false);
-		}
-		wasItemGathererEnabled = WURST.getHax().itemGathererHack.isEnabled();
+		
 		EVENTS.add(UpdateListener.class, this);
 		EVENTS.add(RenderListener.class, this);
 	}
@@ -152,11 +146,6 @@ public final class FlowerPickerHack extends Hack
 			MC.interactionManager.cancelBlockBreaking();
 			currentBlock = null;
 		}
-		
-		// Disable ItemGatherer if we enabled it
-		if(useItemGatherer.isChecked() && !wasItemGathererEnabled
-			&& WURST.getHax().itemGathererHack.isEnabled())
-			WURST.getHax().itemGathererHack.setEnabled(false);
 		
 		overlay.resetProgress();
 	}
@@ -190,32 +179,9 @@ public final class FlowerPickerHack extends Hack
 			
 			// Configure ItemGatherer
 			
-			if(!WURST.getHax().itemGathererHack.isEnabled())
-			{
-				if(shouldEnableItemGatherer())
-				{
-					// Enable ItemGatherer when we find items
-					WURST.getHax().itemGathererHack.setEnabled(true);
-					return;
-				}
-			}
 		}
 		// Rest of the onUpdate method remains unchanged
 		// Check for nearby items to collect if ItemGatherer is enabled
-		if(useItemGatherer.isChecked())
-		{
-			// Configure ItemGatherer
-			
-			if(!WURST.getHax().itemGathererHack.isEnabled())
-			{
-				if(shouldEnableItemGatherer())
-				{
-					// Enable ItemGatherer when we find items
-					WURST.getHax().itemGathererHack.setEnabled(true);
-					return;
-				}
-			}
-		}
 		
 		if(flowerFinder != null)
 		{

@@ -121,7 +121,6 @@ public final class TreeBotHack extends Hack
 		collectingItems = false;
 		
 		// Get a reference to the ItemGathererHack
-		itemGatherer = WURST.getHax().itemGathererHack;
 		
 		EVENTS.add(UpdateListener.class, this);
 		EVENTS.add(RenderListener.class, this);

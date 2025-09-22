@@ -34,7 +34,6 @@ import net.wurstclient.settings.ItemListSetting;
 import net.wurstclient.settings.SliderSetting;
 import net.wurstclient.settings.SliderSetting.ValueDisplay;
 import net.wurstclient.util.ChatUtils;
-import net.wurstclient.util.ClientAfkState;
 import net.wurstclient.util.RenderUtils;
 
 @SearchTags({"item gatherer", "loot finder", "collector"})
@@ -149,15 +148,6 @@ public final class ItemGathererHack extends Hack
 	public void onUpdate()
 	{
 		// Check if we're in AFK mode
-		if(ClientAfkState.isAfk())
-		{
-			// Clean up current operation if we're AFK
-			PathProcessor.releaseControls();
-			targetItem = null;
-			pathFinder = null;
-			processor = null;
-			return;
-		}
 		
 		// Check if inventory is full
 		if(stopWhenInventoryFull.isChecked() && isInventoryFull())
@@ -300,8 +290,6 @@ public final class ItemGathererHack extends Hack
 		double priorityDistanceSq = priorityDistance.getValueSq();
 		
 		// Check for AFK state
-		if(ClientAfkState.isAfk())
-			return null;
 		
 		// Collect all item entities within range
 		ArrayList<ItemEntity> itemsInRange = new ArrayList<>();
