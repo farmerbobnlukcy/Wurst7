@@ -38,7 +38,7 @@ import net.wurstclient.settings.SliderSetting.ValueDisplay;
 import net.wurstclient.util.BlockUtils;
 import net.wurstclient.util.InventoryUtils;
 
-@SearchTags({"auto tool", "AutoSwitch", "auto switch"})
+@SearchTags({"tool", "AutoSwitch", "auto switch", "auto tool"})
 public final class AutoToolHack extends Hack
 	implements BlockBreakingProgressListener, UpdateListener
 {

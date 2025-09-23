@@ -13,7 +13,7 @@ import net.wurstclient.events.UpdateListener;
 import net.wurstclient.hack.Hack;
 import net.wurstclient.mixinterface.IKeyBinding;
 
-@SearchTags({"auto walk"})
+@SearchTags({"walk", "auto walk"})
 public final class AutoWalkHack extends Hack implements UpdateListener
 {
 	public AutoWalkHack()

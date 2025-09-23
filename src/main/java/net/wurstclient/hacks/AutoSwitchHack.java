@@ -13,7 +13,7 @@ import net.wurstclient.SearchTags;
 import net.wurstclient.events.UpdateListener;
 import net.wurstclient.hack.Hack;
 
-@SearchTags({"auto switch"})
+@SearchTags({"switch auto"})
 public final class AutoSwitchHack extends Hack implements UpdateListener
 {
 	public AutoSwitchHack()

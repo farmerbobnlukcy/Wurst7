@@ -20,7 +20,7 @@ import net.wurstclient.settings.CheckboxSetting;
 import net.wurstclient.settings.SliderSetting;
 import net.wurstclient.settings.SliderSetting.ValueDisplay;
 
-@SearchTags({"creative flight", "CreativeFly", "creative fly"})
+@SearchTags({"flight", "fly", "creative fly"})
 public final class CreativeFlightHack extends Hack implements UpdateListener
 {
 	private final CheckboxSetting antiKick = new CheckboxSetting("Anti-Kick",
