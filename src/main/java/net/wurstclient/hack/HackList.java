@@ -193,7 +193,7 @@ public final class HackList implements UpdateListener
 	public final AFKGuardHack afkGuardHack = new AFKGuardHack();
 	private final TreeMap<String, Hack> hax =
 		new TreeMap<>(String::compareToIgnoreCase);
-	
+	private final BedEspHack bedHack = new BedEspHack();
 	private final EnabledHacksFile enabledHacksFile;
 	private final Path profilesFolder =
 		WurstClient.INSTANCE.getWurstFolder().resolve("enabled hacks");
