@@ -29,7 +29,7 @@ import net.wurstclient.settings.SliderSetting.ValueDisplay;
 import net.wurstclient.util.EntityUtils;
 import net.wurstclient.util.ItemUtils;
 
-@SearchTags({"auto sword"})
+@SearchTags({"sword auto"})
 public final class AutoSwordHack extends Hack implements UpdateListener
 {
 	private final EnumSetting<Priority> priority =
