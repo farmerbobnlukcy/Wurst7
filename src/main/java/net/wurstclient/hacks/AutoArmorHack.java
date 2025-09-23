@@ -56,10 +56,10 @@ public final class AutoArmorHack extends Hack
 			+ "\u00a7c\u00a7lWARNING:\u00a7r This would not be possible without cheats. It may raise suspicion.",
 		false);
 	
-	private final CheckboxSetting preserveElytraWhenGliding = new CheckboxSetting(
-		"Preserve elytra when gliding",
-		"Prevents the hack from replacing your elytra with a chestplate while you're gliding.",
-		true);
+	private final CheckboxSetting preserveElytraWhenGliding =
+		new CheckboxSetting("Preserve elytra when gliding",
+			"Prevents the hack from replacing your elytra with a chestplate while you're gliding.",
+			true);
 	
 	private final SliderSetting delay = new SliderSetting("Delay",
 		"Amount of ticks to wait before swapping the next piece of armor.", 2,
@@ -132,9 +132,11 @@ public final class AutoArmorHack extends Hack
 			ItemStack stack = player.getEquippedStack(type);
 			if(!MC.player.canEquip(stack, type))
 				continue;
-			
-			// Skip checking chest slot for better armor if player is gliding and preserveElytra is enabled
-			if(type == EquipmentSlot.CHEST && isGliding && stack.isOf(Items.ELYTRA)
+				
+			// Skip checking chest slot for better armor if player is gliding
+			// and preserveElytra is enabled
+			if(type == EquipmentSlot.CHEST && isGliding
+				&& stack.isOf(Items.ELYTRA)
 				&& preserveElytraWhenGliding.isChecked())
 			{
 				// Add a very high value to make sure elytra is kept
@@ -155,8 +157,9 @@ public final class AutoArmorHack extends Hack
 				continue;
 			
 			// Skip checking elytra replacements if player is gliding
-			if(armorType == EquipmentSlot.CHEST && isGliding 
-				&& player.getEquippedStack(EquipmentSlot.CHEST).isOf(Items.ELYTRA)
+			if(armorType == EquipmentSlot.CHEST && isGliding
+				&& player.getEquippedStack(EquipmentSlot.CHEST)
+					.isOf(Items.ELYTRA)
 				&& preserveElytraWhenGliding.isChecked())
 				continue;
 			
