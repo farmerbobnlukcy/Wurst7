@@ -9,13 +9,13 @@ package net.wurstclient.hacks;
 
 import java.awt.Color;
 import java.util.ArrayList;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.ItemEntity;
 import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 import net.wurstclient.Category;
@@ -24,6 +24,7 @@ import net.wurstclient.events.CameraTransformViewBobbingListener;
 import net.wurstclient.events.RenderListener;
 import net.wurstclient.events.UpdateListener;
 import net.wurstclient.hack.Hack;
+import net.wurstclient.settings.CheckboxSetting;
 import net.wurstclient.settings.ColorSetting;
 import net.wurstclient.settings.EspBoxSizeSetting;
 import net.wurstclient.settings.EspStyleSetting;
@@ -44,6 +45,19 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 	
 	private final ColorSetting color = new ColorSetting("Color",
 		"Items will be highlighted in this color.", Color.YELLOW);
+	
+	// Special settings for rotten flesh and arrows
+	private final CheckboxSetting filterRottenFlesh =
+		new CheckboxSetting("Filter Rotten Flesh",
+			"When enabled, rotten flesh will not be highlighted.", false);
+	
+	private final CheckboxSetting highlightArrows =
+		new CheckboxSetting("Highlight Arrows",
+			"Specifically highlights arrows with a different color.", false);
+	
+	private final ColorSetting arrowColor = new ColorSetting("Arrow Color",
+		"Arrows will be highlighted in this color when 'Highlight Arrows' is enabled.",
+		new Color(0, 128, 255)); // Light blue color
 	
 	public enum ItemCategory
 	{
@@ -78,6 +92,7 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 	
 	private final ItemFilterList itemFilters;
 	private final ArrayList<ItemEntity> items = new ArrayList<>();
+	private final ArrayList<ItemEntity> arrows = new ArrayList<>();
 	
 	public ItemEspHack()
 	{
@@ -88,6 +103,11 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 		addSetting(style);
 		addSetting(boxSize);
 		addSetting(color);
+		
+		// Add special settings
+		addSetting(filterRottenFlesh);
+		addSetting(highlightArrows);
+		addSetting(arrowColor);
 		
 		// Create filters for each category
 		itemFilters = new ItemFilterList(
@@ -129,15 +149,59 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 	{
 		// Clear all item lists
 		items.clear();
+		arrows.clear();
 		
 		// Find items using streams and filter them
 		Stream<ItemEntity> stream =
 			StreamSupport.stream(MC.world.getEntities().spliterator(), false)
 				.filter(ItemEntity.class::isInstance).map(e -> (ItemEntity)e);
 		
+		// Apply category filters
 		stream = itemFilters.applyTo(stream);
 		
-		items.addAll(stream.collect(Collectors.toList()));
+		// Process and filter items
+		StreamSupport.stream(MC.world.getEntities().spliterator(), false)
+			.filter(ItemEntity.class::isInstance).map(e -> (ItemEntity)e)
+			.forEach(item -> {
+				ItemStack stack = item.getStack();
+				
+				// Check for rotten flesh filter
+				if(filterRottenFlesh.isChecked() && isRottenFlesh(stack))
+					return;
+				
+				// Handle arrows separately
+				if(isArrow(stack))
+				{
+					if(highlightArrows.isChecked())
+						arrows.add(item);
+					return;
+				}
+				
+				// Apply normal category filters
+				boolean passesFilter =
+					(isToolItem(stack) && itemFilters.testOne(item))
+						|| (isFoodItem(stack) && itemFilters.testOne(item))
+						|| (isMaterialItem(stack) && itemFilters.testOne(item))
+						|| (isValuableItem(stack) && itemFilters.testOne(item))
+						|| (isBlockItem(stack) && itemFilters.testOne(item))
+						|| (isOtherItem(stack) && itemFilters.testOne(item));
+				
+				if(passesFilter)
+				{
+					items.add(item);
+				}
+			});
+	}
+	
+	private boolean isRottenFlesh(ItemStack stack)
+	{
+		return stack.isOf(Items.ROTTEN_FLESH);
+	}
+	
+	private boolean isArrow(ItemStack stack)
+	{
+		return stack.isOf(Items.ARROW) || stack.isOf(Items.TIPPED_ARROW)
+			|| stack.isOf(Items.SPECTRAL_ARROW);
 	}
 	
 	private boolean isToolItem(ItemStack stack)
@@ -218,35 +282,79 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 	public void onRender(MatrixStack matrixStack, float partialTicks)
 	{
 		int lineColor = color.getColorI(0x80);
+		int arrowLineColor = arrowColor.getColorI(0x80);
 		
+		// Render regular items
 		if(style.hasBoxes())
 		{
 			double extraSize = boxSize.getExtraSize() / 2;
 			
-			ArrayList<Box> boxes = new ArrayList<>();
-			
-			// Add all items that passed the filters
-			for(ItemEntity e : items)
+			// Render regular items
+			if(!items.isEmpty())
 			{
-				boxes.add(EntityUtils.getLerpedBox(e, partialTicks)
-					.offset(0, extraSize, 0).expand(extraSize));
+				ArrayList<Box> boxes = new ArrayList<>();
+				
+				// Add all items that passed the filters
+				for(ItemEntity e : items)
+				{
+					boxes.add(EntityUtils.getLerpedBox(e, partialTicks)
+						.offset(0, extraSize, 0).expand(extraSize));
+				}
+				
+				RenderUtils.drawOutlinedBoxes(matrixStack, boxes, lineColor,
+					false);
 			}
 			
-			RenderUtils.drawOutlinedBoxes(matrixStack, boxes, lineColor, false);
+			// Render arrows separately
+			if(!arrows.isEmpty() && highlightArrows.isChecked())
+			{
+				ArrayList<Box> arrowBoxes = new ArrayList<>();
+				
+				// Add all arrows
+				for(ItemEntity e : arrows)
+				{
+					arrowBoxes.add(EntityUtils.getLerpedBox(e, partialTicks)
+						.offset(0, extraSize, 0).expand(extraSize));
+				}
+				
+				RenderUtils.drawOutlinedBoxes(matrixStack, arrowBoxes,
+					arrowLineColor, false);
+			}
 		}
 		
 		if(style.hasLines())
 		{
-			ArrayList<Vec3d> ends = new ArrayList<>();
-			
-			// Add tracers for all filtered items
-			for(ItemEntity e : items)
+			// Render regular item tracers
+			if(!items.isEmpty())
 			{
-				ends.add(EntityUtils.getLerpedBox(e, partialTicks).getCenter());
+				ArrayList<Vec3d> ends = new ArrayList<>();
+				
+				// Add tracers for all filtered items
+				for(ItemEntity e : items)
+				{
+					ends.add(
+						EntityUtils.getLerpedBox(e, partialTicks).getCenter());
+				}
+				
+				RenderUtils.drawTracers(matrixStack, partialTicks, ends,
+					lineColor, false);
 			}
 			
-			RenderUtils.drawTracers(matrixStack, partialTicks, ends, lineColor,
-				false);
+			// Render arrow tracers separately
+			if(!arrows.isEmpty() && highlightArrows.isChecked())
+			{
+				ArrayList<Vec3d> arrowEnds = new ArrayList<>();
+				
+				// Add tracers for all arrows
+				for(ItemEntity e : arrows)
+				{
+					arrowEnds.add(
+						EntityUtils.getLerpedBox(e, partialTicks).getCenter());
+				}
+				
+				RenderUtils.drawTracers(matrixStack, partialTicks, arrowEnds,
+					arrowLineColor, false);
+			}
 		}
 	}
 }
