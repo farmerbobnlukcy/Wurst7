@@ -113,7 +113,7 @@ public final class WurstUpdater implements UpdateListener
 		String url = baseUrl + "?utm_source=" + utmSource + "&utm_medium="
 			+ utmMedium + "&utm_content=" + utmContent;
 		
-		showLink(text, url);
+		// showLink(text, url);
 	}
 	
 	private void showLink(String text, String url)
