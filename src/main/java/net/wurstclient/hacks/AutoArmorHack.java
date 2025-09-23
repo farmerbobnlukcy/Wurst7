@@ -23,6 +23,7 @@ import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
 import net.minecraft.network.packet.c2s.play.ClickSlotC2SPacket;
 import net.minecraft.registry.DynamicRegistryManager;
 import net.minecraft.registry.Registry;
@@ -55,6 +56,11 @@ public final class AutoArmorHack extends Hack
 			+ "\u00a7c\u00a7lWARNING:\u00a7r This would not be possible without cheats. It may raise suspicion.",
 		false);
 	
+	private final CheckboxSetting preserveElytraWhenGliding = new CheckboxSetting(
+		"Preserve elytra when gliding",
+		"Prevents the hack from replacing your elytra with a chestplate while you're gliding.",
+		true);
+	
 	private final SliderSetting delay = new SliderSetting("Delay",
 		"Amount of ticks to wait before swapping the next piece of armor.", 2,
 		0, 20, 1, ValueDisplay.INTEGER);
@@ -67,6 +73,7 @@ public final class AutoArmorHack extends Hack
 		setCategory(Category.COMBAT);
 		addSetting(useEnchantments);
 		addSetting(swapWhileMoving);
+		addSetting(preserveElytraWhenGliding);
 		addSetting(delay);
 	}
 	
@@ -107,6 +114,9 @@ public final class AutoArmorHack extends Hack
 			|| player.input.movementSideways != 0))
 			return;
 		
+		// check if player is gliding with elytra
+		boolean isGliding = player.isGliding();
+		
 		// store slots and values of best armor pieces
 		EnumMap<EquipmentSlot, ArmorData> bestArmor =
 			new EnumMap<>(EquipmentSlot.class);
@@ -123,6 +133,15 @@ public final class AutoArmorHack extends Hack
 			if(!MC.player.canEquip(stack, type))
 				continue;
 			
+			// Skip checking chest slot for better armor if player is gliding and preserveElytra is enabled
+			if(type == EquipmentSlot.CHEST && isGliding && stack.isOf(Items.ELYTRA)
+				&& preserveElytraWhenGliding.isChecked())
+			{
+				// Add a very high value to make sure elytra is kept
+				bestArmor.put(type, new ArmorData(-1, Integer.MAX_VALUE));
+				continue;
+			}
+			
 			bestArmor.put(type, new ArmorData(-1, getArmorValue(stack)));
 		}
 		
@@ -133,6 +152,12 @@ public final class AutoArmorHack extends Hack
 			
 			EquipmentSlot armorType = ItemUtils.getArmorSlot(stack.getItem());
 			if(armorType == null)
+				continue;
+			
+			// Skip checking elytra replacements if player is gliding
+			if(armorType == EquipmentSlot.CHEST && isGliding 
+				&& player.getEquippedStack(EquipmentSlot.CHEST).isOf(Items.ELYTRA)
+				&& preserveElytraWhenGliding.isChecked())
 				continue;
 			
 			int armorValue = getArmorValue(stack);
