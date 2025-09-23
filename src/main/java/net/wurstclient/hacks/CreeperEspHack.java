@@ -9,13 +9,13 @@ package net.wurstclient.hacks;
 
 import java.awt.Color;
 import java.util.ArrayList;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.mob.CreeperEntity;
+import net.minecraft.entity.mob.PhantomEntity;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
@@ -36,7 +36,7 @@ import net.wurstclient.util.RenderUtils.ColoredBox;
 import net.wurstclient.util.RenderUtils.ColoredPoint;
 
 @SearchTags({"creeper esp", "CreeperTracers", "creeper tracers",
-	"creeper finder"})
+	"creeper finder", "phantom esp", "PhantomTracers", "phantom tracers"})
 public final class CreeperEspHack extends Hack implements UpdateListener,
 	CameraTransformViewBobbingListener, RenderListener
 {
@@ -46,14 +46,19 @@ public final class CreeperEspHack extends Hack implements UpdateListener,
 		"\u00a7lAccurate\u00a7r mode shows the exact hitbox of each creeper.\n"
 			+ "\u00a7lFancy\u00a7r mode shows slightly larger boxes that look better.");
 	
-	private final ColorSetting color = new ColorSetting("Color",
+	private final ColorSetting creeperColor = new ColorSetting("Creeper Color",
 		"Creepers will be highlighted in this color.", new Color(0, 255, 0));
 	
+	private final ColorSetting phantomColor = new ColorSetting("Phantom Color",
+		"Phantoms will be highlighted in this color.",
+		new Color(100, 100, 255));
+	
 	private final SliderSetting distance = new SliderSetting("Distance",
-		"Maximum distance in blocks that creepers will be highlighted.", 50, 10,
+		"Maximum distance in blocks that mobs will be highlighted.", 50, 10,
 		200, 10, ValueDisplay.INTEGER);
 	
 	private final ArrayList<CreeperEntity> creepers = new ArrayList<>();
+	private final ArrayList<PhantomEntity> phantoms = new ArrayList<>();
 	
 	public CreeperEspHack()
 	{
@@ -61,7 +66,8 @@ public final class CreeperEspHack extends Hack implements UpdateListener,
 		setCategory(Category.RENDER);
 		addSetting(style);
 		addSetting(boxSize);
-		addSetting(color);
+		addSetting(creeperColor);
+		addSetting(phantomColor);
 		addSetting(distance);
 	}
 	
@@ -85,21 +91,23 @@ public final class CreeperEspHack extends Hack implements UpdateListener,
 	public void onUpdate()
 	{
 		creepers.clear();
+		phantoms.clear();
 		
-		// Get all entities and filter for creepers only
+		// Get all entities
 		Stream<Entity> stream =
 			StreamSupport.stream(MC.world.getEntities().spliterator(), false);
 		
 		double maxDistSq = Math.pow(distance.getValue(), 2);
 		
 		// Find all creepers within range
-		Stream<CreeperEntity> creeperStream = stream
-			.filter(entity -> entity instanceof CreeperEntity)
-			.map(entity -> (CreeperEntity)entity)
-			.filter(entity -> !entity.isRemoved() && entity.getHealth() > 0)
-			.filter(entity -> MC.player.squaredDistanceTo(entity) <= maxDistSq);
-		
-		creepers.addAll(creeperStream.collect(Collectors.toList()));
+		stream.filter(entity -> !entity.isRemoved())
+			.filter(entity -> MC.player.squaredDistanceTo(entity) <= maxDistSq)
+			.forEach(entity -> {
+				if(entity instanceof CreeperEntity)
+					creepers.add((CreeperEntity)entity);
+				else if(entity instanceof PhantomEntity)
+					phantoms.add((PhantomEntity)entity);
+			});
 	}
 	
 	@Override
@@ -113,18 +121,20 @@ public final class CreeperEspHack extends Hack implements UpdateListener,
 	@Override
 	public void onRender(MatrixStack matrixStack, float partialTicks)
 	{
-		// No need to render if no creepers were found
-		if(creepers.isEmpty())
+		// No need to render if no mobs were found
+		if(creepers.isEmpty() && phantoms.isEmpty())
 			return;
 		
-		// Get the base color from settings
-		int boxColor = color.getColorI(0x80);
-		
+		// Render boxes
 		if(style.hasBoxes())
 		{
 			double extraSize = boxSize.getExtraSize() / 2;
 			
-			ArrayList<ColoredBox> boxes = new ArrayList<>(creepers.size());
+			ArrayList<ColoredBox> boxes =
+				new ArrayList<>(creepers.size() + phantoms.size());
+			
+			// Add creeper boxes
+			int creeperBoxColor = creeperColor.getColorI(0x80);
 			for(CreeperEntity e : creepers)
 			{
 				Box box = EntityUtils.getLerpedBox(e, partialTicks)
@@ -133,17 +143,32 @@ public final class CreeperEspHack extends Hack implements UpdateListener,
 				// Change color intensity based on creeper fuse time
 				float fuseIntensity = e.getClientFuseTime(partialTicks);
 				int adjustedColor = fuseIntensity > 0
-					? getRawColorForFuse(fuseIntensity, boxColor) : boxColor;
+					? getRawColorForFuse(fuseIntensity, creeperBoxColor)
+					: creeperBoxColor;
 				
 				boxes.add(new ColoredBox(box, adjustedColor));
+			}
+			
+			// Add phantom boxes
+			int phantomBoxColor = phantomColor.getColorI(0x80);
+			for(PhantomEntity e : phantoms)
+			{
+				Box box = EntityUtils.getLerpedBox(e, partialTicks)
+					.offset(0, extraSize, 0).expand(extraSize);
+				boxes.add(new ColoredBox(box, phantomBoxColor));
 			}
 			
 			RenderUtils.drawOutlinedBoxes(matrixStack, boxes, false);
 		}
 		
+		// Render tracers
 		if(style.hasLines())
 		{
-			ArrayList<ColoredPoint> ends = new ArrayList<>(creepers.size());
+			ArrayList<ColoredPoint> ends =
+				new ArrayList<>(creepers.size() + phantoms.size());
+			
+			// Add creeper tracers
+			int creeperLineColor = creeperColor.getColorI(0x80);
 			for(CreeperEntity e : creepers)
 			{
 				Vec3d point =
@@ -152,9 +177,19 @@ public final class CreeperEspHack extends Hack implements UpdateListener,
 				// Change color intensity based on creeper fuse time
 				float fuseIntensity = e.getClientFuseTime(partialTicks);
 				int adjustedColor = fuseIntensity > 0
-					? getRawColorForFuse(fuseIntensity, boxColor) : boxColor;
+					? getRawColorForFuse(fuseIntensity, creeperLineColor)
+					: creeperLineColor;
 				
 				ends.add(new ColoredPoint(point, adjustedColor));
+			}
+			
+			// Add phantom tracers
+			int phantomLineColor = phantomColor.getColorI(0x80);
+			for(PhantomEntity e : phantoms)
+			{
+				Vec3d point =
+					EntityUtils.getLerpedBox(e, partialTicks).getCenter();
+				ends.add(new ColoredPoint(point, phantomLineColor));
 			}
 			
 			RenderUtils.drawTracers(matrixStack, partialTicks, ends, false);
