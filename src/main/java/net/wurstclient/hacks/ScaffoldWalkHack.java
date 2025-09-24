@@ -143,14 +143,16 @@ public final class ScaffoldWalkHack extends Hack implements UpdateListener
 			if(!BlockUtils.canBeClicked(neighbor))
 				continue;
 			
-			Vec3d hitVec = Vec3d.ofCenter(neighbor)
-				.add(Vec3d.of(side2.getVector()).multiply(0.5));
+			// calculate hit vector to target the face of the block
+			Vec3d hitVec = Vec3d.ofCenter(neighbor);
+			Vec3d faceVec = Vec3d.of(side2.getVector()).multiply(0.5);
+			hitVec = hitVec.add(faceVec);
 			
 			// check if hitVec is within range (4.25 blocks)
 			if(eyesPos.squaredDistanceTo(hitVec) > 18.0625)
 				continue;
 			
-			// place block
+			// place block while targeting the specific block face
 			RotationUtils.getNeededRotations(hitVec).sendPlayerLookPacket();
 			IMC.getInteractionManager().rightClickBlock(neighbor, side2,
 				hitVec);
