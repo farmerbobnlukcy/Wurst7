@@ -15,6 +15,7 @@ import net.wurstclient.hack.Hack;
 @SearchTags({"fast place"})
 public final class FastPlaceHack extends Hack implements UpdateListener
 {
+	
 	public FastPlaceHack()
 	{
 		super("FastPlace");
@@ -36,6 +37,8 @@ public final class FastPlaceHack extends Hack implements UpdateListener
 	@Override
 	public void onUpdate()
 	{
-		MC.itemUseCooldown = 0;
+		// Don't fast place if player is sneaking
+		if(!MC.player.isSneaking())
+			MC.itemUseCooldown = 0;
 	}
 }
