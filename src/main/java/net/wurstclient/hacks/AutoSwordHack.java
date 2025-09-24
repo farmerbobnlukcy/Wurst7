@@ -34,7 +34,11 @@ public final class AutoSwordHack extends Hack implements UpdateListener
 {
 	private final EnumSetting<Priority> priority =
 		new EnumSetting<>("Priority", Priority.values(), Priority.SPEED);
-	
+	private final CheckboxSetting autoEatWait = new CheckboxSetting(
+			"Auto Eat Wait", "wait for autoeat to complete", false
+	);
+	private final CheckboxSetting ignoreAnimals = new CheckboxSetting( "Ignore Animals", "ignores animals or friendly mobx"
+	, true);
 	private final CheckboxSetting switchBack = new CheckboxSetting(
 		"Switch back", "Switches back to the previously selected slot after"
 			+ " \u00a7lRelease time\u00a7r has passed.",
