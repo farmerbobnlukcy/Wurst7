@@ -8,6 +8,8 @@
 package net.wurstclient.util;
 
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.font.TextRenderer;
+import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.Box;
@@ -24,7 +26,7 @@ public final class TextRenderer3D
 	/**
 	 * Renders text at the specified position in 3D space.
 	 *
-	 * @param matrixStack
+	 * @param matrices
 	 *            the matrix stack
 	 * @param text
 	 *            the text to render
@@ -41,41 +43,37 @@ public final class TextRenderer3D
 	 * @param scale
 	 *            the text scale factor (default is 0.025)
 	 */
-	public static void renderText(MatrixStack matrixStack, Text text,
-		double posX, double posY, double posZ, int color, boolean shadow,
-		float scale)
+	public static void renderText(MatrixStack matrices, Text text, double posX,
+		double posY, double posZ, int color, boolean shadow, float scale)
 	{
-		// Save previous matrix state
-		matrixStack.push();
+		TextRenderer textRenderer = MC.textRenderer;
+		VertexConsumerProvider.Immediate immediate =
+			MC.getBufferBuilders().getEntityVertexConsumers();
 		
-		// Position text in 3D space
-		matrixStack.translate(posX, posY, posZ);
+		matrices.push();
+		matrices.translate(posX, posY, posZ);
+		matrices.multiply(MC.gameRenderer.getCamera().getRotation());
+		matrices.scale(-scale, -scale, scale);
 		
-		// Make text face the player
-		matrixStack.multiply(MC.gameRenderer.getCamera().getRotation());
+		float opacity = (color >> 24 & 0xFF) / 255.0F;
+		int textBackground = (int)(opacity * 255.0F) << 24;
 		
-		// Flip text and scale it appropriately
-		matrixStack.scale(-scale, -scale, scale);
+		// Get width for centering
+		float width = -textRenderer.getWidth(text) / 2.0F;
 		
-		// Center the text
-		int textWidth = MC.textRenderer.getWidth(text);
-		float xOffset = -textWidth / 2f;
+		// Draw the text - using Minecraft's built-in text rendering system
+		textRenderer.draw(text, width, 0, color, shadow,
+			matrices.peek().getPositionMatrix(), immediate,
+			TextRenderer.TextLayerType.NORMAL, textBackground, 0xF000F0);
 		
-		// Render the text
-		if(shadow)
-			MC.textRenderer.drawWithShadow(matrixStack, text, xOffset, 0,
-				color);
-		else
-			MC.textRenderer.draw(matrixStack, text, xOffset, 0, color);
-		
-		// Restore previous matrix state
-		matrixStack.pop();
+		immediate.draw();
+		matrices.pop();
 	}
 	
 	/**
 	 * Renders text at the specified position in 3D space with default scale.
 	 *
-	 * @param matrixStack
+	 * @param matrices
 	 *            the matrix stack
 	 * @param text
 	 *            the text to render
@@ -90,17 +88,17 @@ public final class TextRenderer3D
 	 * @param shadow
 	 *            whether to render a shadow
 	 */
-	public static void renderText(MatrixStack matrixStack, Text text,
-		double posX, double posY, double posZ, int color, boolean shadow)
+	public static void renderText(MatrixStack matrices, Text text, double posX,
+		double posY, double posZ, int color, boolean shadow)
 	{
-		renderText(matrixStack, text, posX, posY, posZ, color, shadow, 0.025f);
+		renderText(matrices, text, posX, posY, posZ, color, shadow, 0.025F);
 	}
 	
 	/**
 	 * Renders text above a box (typically an entity's bounding box) in 3D
 	 * space.
 	 *
-	 * @param matrixStack
+	 * @param matrices
 	 *            the matrix stack
 	 * @param text
 	 *            the text to render
@@ -115,18 +113,18 @@ public final class TextRenderer3D
 	 * @param scale
 	 *            the text scale factor
 	 */
-	public static void renderTextAboveBox(MatrixStack matrixStack, Text text,
+	public static void renderTextAboveBox(MatrixStack matrices, Text text,
 		Box box, double yOffset, int color, boolean shadow, float scale)
 	{
 		Vec3d center = box.getCenter();
-		renderText(matrixStack, text, center.x, box.maxY + yOffset, center.z,
+		renderText(matrices, text, center.x, box.maxY + yOffset, center.z,
 			color, shadow, scale);
 	}
 	
 	/**
 	 * Renders text above a box with default scale and offset.
 	 *
-	 * @param matrixStack
+	 * @param matrices
 	 *            the matrix stack
 	 * @param text
 	 *            the text to render
@@ -137,16 +135,16 @@ public final class TextRenderer3D
 	 * @param shadow
 	 *            whether to render a shadow
 	 */
-	public static void renderTextAboveBox(MatrixStack matrixStack, Text text,
+	public static void renderTextAboveBox(MatrixStack matrices, Text text,
 		Box box, int color, boolean shadow)
 	{
-		renderTextAboveBox(matrixStack, text, box, 0.3, color, shadow, 0.025f);
+		renderTextAboveBox(matrices, text, box, 0.3, color, shadow, 0.025F);
 	}
 	
 	/**
 	 * Renders text above a box with specified offset.
 	 *
-	 * @param matrixStack
+	 * @param matrices
 	 *            the matrix stack
 	 * @param text
 	 *            the text to render
@@ -159,10 +157,9 @@ public final class TextRenderer3D
 	 * @param shadow
 	 *            whether to render a shadow
 	 */
-	public static void renderTextAboveBox(MatrixStack matrixStack, Text text,
+	public static void renderTextAboveBox(MatrixStack matrices, Text text,
 		Box box, double yOffset, int color, boolean shadow)
 	{
-		renderTextAboveBox(matrixStack, text, box, yOffset, color, shadow,
-			0.025f);
+		renderTextAboveBox(matrices, text, box, yOffset, color, shadow, 0.025F);
 	}
 }
