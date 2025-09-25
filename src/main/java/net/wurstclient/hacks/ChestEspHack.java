@@ -39,6 +39,7 @@ import net.wurstclient.hacks.chestesp.ChestEspGroup;
 import net.wurstclient.settings.CheckboxSetting;
 import net.wurstclient.settings.ColorSetting;
 import net.wurstclient.settings.EspStyleSetting;
+import net.wurstclient.settings.SliderSetting;
 import net.wurstclient.util.BlockUtils;
 import net.wurstclient.util.RenderUtils;
 import net.wurstclient.util.chunk.ChunkUtils;
@@ -63,6 +64,12 @@ public class ChestEspHack extends Hack implements UpdateListener,
 		new ColorSetting("Ender color",
 			"Ender chests will be highlighted in this color.", Color.CYAN),
 		new CheckboxSetting("Include ender chests", true));
+
+	private final SliderSetting enderChestMaxDistance = new SliderSetting(
+		"Ender chest max distance",
+		"Maximum distance at which ender chests will be rendered.\n"
+			+ "This prevents overwhelming rendering of too many ender chests.",
+		64, 16, 256, 16, SliderSetting.ValueDisplay.INTEGER);
 	
 	private final ChestEspEntityGroup chestCarts =
 		new ChestEspEntityGroup(
@@ -218,6 +225,7 @@ public class ChestEspHack extends Hack implements UpdateListener,
 		addSetting(doubleChestLines);
 		addSetting(doubleTrappedChestColor);
 		addSetting(doubleTrappedChestLines);
+		addSetting(enderChestMaxDistance);
 		
 		// Associate each group with its line setting
 		lineSettings.put(basicChests, basicChestLines);
@@ -309,7 +317,17 @@ public class ChestEspHack extends Hack implements UpdateListener,
 				basicChests.add(blockEntity);
 				findAndAddDoubleChest(blockEntity);
 			}else if(blockEntity instanceof EnderChestBlockEntity)
-				enderChests.add(blockEntity);
+			{
+				// Only add ender chests within the maximum distance
+				BlockPos pos = blockEntity.getPos();
+				Vec3d playerPos = MC.player.getPos();
+				Vec3d chestPos = new Vec3d(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
+				double distance = playerPos.squaredDistanceTo(chestPos);
+				double maxDistSq = enderChestMaxDistance.getValueSq();
+
+				if (distance <= maxDistSq)
+					enderChests.add(blockEntity);
+			}
 			else if(blockEntity instanceof ShulkerBoxBlockEntity)
 				shulkerBoxes.add(blockEntity);
 			else if(blockEntity instanceof BarrelBlockEntity)
@@ -418,6 +436,9 @@ public class ChestEspHack extends Hack implements UpdateListener,
 				continue;
 			
 			List<Box> boxes = group.getBoxes();
+
+			// Ender chests are already filtered by distance in onUpdate
+
 			int quadsColor = group.getColorI(0x40);
 			int linesColor = group.getColorI(0x80);
 			
