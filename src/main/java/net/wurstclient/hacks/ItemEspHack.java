@@ -32,6 +32,8 @@ import net.wurstclient.settings.filters.FilterItemCategorySetting;
 import net.wurstclient.settings.filterlists.ItemFilterList;
 import net.wurstclient.util.EntityUtils;
 import net.wurstclient.util.RenderUtils;
+import net.wurstclient.util.TextRenderer3D;
+import net.minecraft.text.Text;
 
 @SearchTags({"item esp", "ItemTracers", "item tracers"})
 public final class ItemEspHack extends Hack implements UpdateListener,
@@ -58,6 +60,21 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 	private final ColorSetting arrowColor = new ColorSetting("Arrow Color",
 		"Arrows will be highlighted in this color when 'Highlight Arrows' is enabled.",
 		new Color(0, 128, 255)); // Light blue color
+	
+	private final CheckboxSetting showItemText = new CheckboxSetting(
+		"Show Item Text",
+		"Displays text labels above valuable items like Elytra, Shulker Boxes, etc.",
+		true);
+	
+	private final CheckboxSetting showSpecialItemText = new CheckboxSetting(
+		"Show Special Item Text",
+		"Displays text labels for special items like Elytra, Shulker Box, etc.",
+		true);
+	
+	private final CheckboxSetting showValuableItemText = new CheckboxSetting(
+		"Show Valuable Item Text",
+		"Displays text labels for all valuable items like diamonds, enchanted books, etc.",
+		true);
 	
 	public enum ItemCategory
 	{
@@ -93,6 +110,11 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 	private final ItemFilterList itemFilters;
 	private final ArrayList<ItemEntity> items = new ArrayList<>();
 	private final ArrayList<ItemEntity> arrows = new ArrayList<>();
+	// Items that will have text labels
+	private static final String[] SPECIAL_ITEMS = {"elytra", "shulker_box",
+		"shulker_shell", "ender_pearl", "ender_eye", "blaze_rod", "emerald"};
+	private final ArrayList<ItemEntity> specialItems = new ArrayList<>();
+	private final ArrayList<ItemEntity> valuableItems = new ArrayList<>();
 	
 	public ItemEspHack()
 	{
@@ -108,6 +130,9 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 		addSetting(filterRottenFlesh);
 		addSetting(highlightArrows);
 		addSetting(arrowColor);
+		addSetting(showItemText);
+		addSetting(showSpecialItemText);
+		addSetting(showValuableItemText);
 		
 		// Create filters for each category
 		itemFilters = new ItemFilterList(
@@ -150,6 +175,8 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 		// Clear all item lists
 		items.clear();
 		arrows.clear();
+		specialItems.clear();
+		valuableItems.clear();
 		
 		// Find items using streams and filter them
 		Stream<ItemEntity> stream =
@@ -189,6 +216,14 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 				if(passesFilter)
 				{
 					items.add(item);
+					
+					// Track special items separately for text rendering
+					if(isSpecialLabeledItem(stack))
+						specialItems.add(item);
+					
+					// Track valuable items separately for text rendering
+					if(isValuableItem(stack))
+						valuableItems.add(item);
 				}
 			});
 	}
@@ -251,6 +286,16 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 			|| itemName.contains("trident") || itemName.contains("enchanted");
 	}
 	
+	private boolean isSpecialItem(ItemStack stack)
+	{
+		String itemName = stack.getItem().toString().toLowerCase();
+		return itemName.contains("elytra") || itemName.contains("shulker_box")
+			|| itemName.contains("shulker_shell")
+			|| itemName.contains("ender_pearl")
+			|| itemName.contains("ender_eye") || itemName.contains("blaze_rod")
+			|| itemName.equals("emerald");
+	}
+	
 	private boolean isBlockItem(ItemStack stack)
 	{
 		String itemName = stack.getItem().toString().toLowerCase();
@@ -270,12 +315,86 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 			&& !isBlockItem(stack);
 	}
 	
+	private boolean isSpecialLabeledItem(ItemStack stack)
+	{
+		String itemName = stack.getItem().toString().toLowerCase();
+		for(String specialItem : SPECIAL_ITEMS)
+			if(itemName.contains(specialItem))
+				return true;
+		return false;
+	}
+	
 	@Override
 	public void onCameraTransformViewBobbing(
 		CameraTransformViewBobbingEvent event)
 	{
 		if(style.hasLines())
 			event.cancel();
+	}
+	
+	/**
+	 * Renders text labels above special items
+	 */
+	private void renderSpecialItemText(MatrixStack matrixStack,
+		float partialTicks)
+	{
+		if(!showSpecialItemText.isChecked() || specialItems.isEmpty())
+			return;
+		
+		// Render text for each special item
+		for(ItemEntity item : specialItems)
+		{
+			// Get the item name and bounding box
+			Text itemText = item.getStack().getItem().getName();
+			Box box = EntityUtils.getLerpedBox(item, partialTicks);
+			
+			// Render the text above the item
+			TextRenderer3D.renderTextAboveBox(matrixStack, itemText, box, 0.3,
+				0xFFFFFFFF, true);
+		}
+	}
+	
+	/**
+	 * Renders text labels above valuable items
+	 */
+	private void renderValuableItemText(MatrixStack matrixStack,
+		float partialTicks)
+	{
+		if(!showValuableItemText.isChecked() || valuableItems.isEmpty())
+			return;
+		
+		for(ItemEntity item : valuableItems)
+		{
+			// Skip special items if they're already being rendered by the
+			// special item text renderer
+			if(specialItems.contains(item) && showSpecialItemText.isChecked())
+				continue;
+			
+			// Get item name and bounding box
+			Text itemText = item.getStack().getItem().getName();
+			Box box = EntityUtils.getLerpedBox(item, partialTicks);
+			
+			// Render the text above the item
+			TextRenderer3D.renderTextAboveBox(matrixStack, itemText, box, 0.3,
+				0xFFFFFFFF, true);
+		}
+	}
+	
+	private void renderItemText(MatrixStack matrixStack, float partialTicks)
+	{
+		if(!showItemText.isChecked() || specialItems.isEmpty())
+			return;
+		
+		for(ItemEntity item : specialItems)
+		{
+			// Get item name and bounding box
+			Text itemText = item.getStack().getItem().getName();
+			Box box = EntityUtils.getLerpedBox(item, partialTicks);
+			
+			// Render the text above the item
+			TextRenderer3D.renderTextAboveBox(matrixStack, itemText, box, 0.3,
+				0xFFFFFFFF, true);
+		}
 	}
 	
 	@Override
@@ -356,5 +475,15 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 					arrowLineColor, false);
 			}
 		}
+		
+		// Render text labels for special items
+		if(showItemText.isChecked())
+			renderItemText(matrixStack, partialTicks);
+		
+		// Render text labels for special items
+		renderSpecialItemText(matrixStack, partialTicks);
+		
+		// Render text labels for valuable items
+		renderValuableItemText(matrixStack, partialTicks);
 	}
 }
