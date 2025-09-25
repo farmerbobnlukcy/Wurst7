@@ -131,19 +131,81 @@ public class ChestEspHack extends Hack implements UpdateListener,
 			chestBoats, barrels, pots, shulkerBoxes, hoppers, hopperCarts,
 			droppers, dispensers, crafters, furnaces);
 	
+	// Add individual line settings for each group
+	private final CheckboxSetting basicChestLines = new CheckboxSetting(
+		"Chest lines", "Show tracers for normal chests.", true);
+	
+	private final CheckboxSetting trapChestLines = new CheckboxSetting(
+		"Trap chest lines", "Show tracers for trap chests.", true);
+	
+	private final CheckboxSetting enderChestLines = new CheckboxSetting(
+		"Ender chest lines", "Show tracers for ender chests.", true);
+	
+	private final CheckboxSetting chestCartLines = new CheckboxSetting(
+		"Chest cart lines", "Show tracers for chest minecarts.", true);
+	
+	private final CheckboxSetting chestBoatLines = new CheckboxSetting(
+		"Chest boat lines", "Show tracers for chest boats.", true);
+	
+	private final CheckboxSetting barrelLines = new CheckboxSetting(
+		"Barrel lines", "Show tracers for barrels.", true);
+	
+	private final CheckboxSetting potLines = new CheckboxSetting(
+		"Pot lines", "Show tracers for pots.", true);
+	
+	private final CheckboxSetting shulkerLines = new CheckboxSetting(
+		"Shulker lines", "Show tracers for shulker boxes.", true);
+	
+	private final CheckboxSetting hopperLines = new CheckboxSetting(
+		"Hopper lines", "Show tracers for hoppers.", true);
+	
+	private final CheckboxSetting hopperCartLines = new CheckboxSetting(
+		"Hopper cart lines", "Show tracers for hopper minecarts.", true);
+	
+	private final CheckboxSetting dropperLines = new CheckboxSetting(
+		"Dropper lines", "Show tracers for droppers.", true);
+	
+	private final CheckboxSetting dispenserLines = new CheckboxSetting(
+		"Dispenser lines", "Show tracers for dispensers.", true);
+	
+	private final CheckboxSetting crafterLines = new CheckboxSetting(
+		"Crafter lines", "Show tracers for crafters.", true);
+	
+	private final CheckboxSetting furnaceLines = new CheckboxSetting(
+		"Furnace lines", "Show tracers for furnaces.", true);
+	
 	private final List<ChestEspEntityGroup> entityGroups =
 		Arrays.asList(chestCarts, chestBoats, hopperCarts);
 	
-	// List to track double chests for special handling
+	// Lists to track double chests for special handling
 	private final List<Box> doubleChestBoxes = new ArrayList<>();
+	private final List<Box> doubleTrappedChestBoxes = new ArrayList<>();
 	private final Map<BlockPos, ChestBlockEntity> chestBlockEntities =
 		new HashMap<>();
 	
-	// Color for double chest tracers
+	// Colors for double chest tracers
 	private final ColorSetting doubleChestColor = new ColorSetting(
 		"Double chest color",
 		"Double chests will be highlighted in this color (tracers always enabled).",
 		new Color(255, 215, 0)); // Gold color
+	
+	private final ColorSetting doubleTrappedChestColor = new ColorSetting(
+		"Double trapped chest color",
+		"Double trapped chests will be highlighted in this color (tracers always enabled).",
+		new Color(255, 140, 0)); // Dark orange color
+	
+	private final CheckboxSetting renderChests = new CheckboxSetting(
+		"Render chests", "If unchecked, chests will not be rendered.", true);
+	
+	// Add line setting for double chests
+	private final CheckboxSetting doubleChestLines = new CheckboxSetting(
+		"Double chest lines", "Show tracers for double chests.", true);
+	
+	private final CheckboxSetting doubleTrappedChestLines = new CheckboxSetting(
+		"Double trapped chest lines", "Show tracers for double trapped chests.", true);
+	
+	// Map to associate groups with their line settings
+	private final Map<ChestEspGroup, CheckboxSetting> lineSettings = new HashMap<>();
 	
 	public ChestEspHack()
 	{
@@ -151,9 +213,47 @@ public class ChestEspHack extends Hack implements UpdateListener,
 		setCategory(Category.RENDER);
 		
 		addSetting(style);
+		addSetting(renderChests);
 		addSetting(doubleChestColor);
+		addSetting(doubleChestLines);
+		addSetting(doubleTrappedChestColor);
+		addSetting(doubleTrappedChestLines);
+		
+		// Associate each group with its line setting
+		lineSettings.put(basicChests, basicChestLines);
+		lineSettings.put(trapChests, trapChestLines);
+		lineSettings.put(enderChests, enderChestLines);
+		lineSettings.put(chestCarts, chestCartLines);
+		lineSettings.put(chestBoats, chestBoatLines);
+		lineSettings.put(barrels, barrelLines);
+		lineSettings.put(pots, potLines);
+		lineSettings.put(shulkerBoxes, shulkerLines);
+		lineSettings.put(hoppers, hopperLines);
+		lineSettings.put(hopperCarts, hopperCartLines);
+		lineSettings.put(droppers, dropperLines);
+		lineSettings.put(dispensers, dispenserLines);
+		lineSettings.put(crafters, crafterLines);
+		lineSettings.put(furnaces, furnaceLines);
+		
+		// Add all group settings first
 		groups.stream().flatMap(ChestEspGroup::getSettings)
 			.forEach(this::addSetting);
+		
+		// Add line settings after the respective group settings
+		addSetting(basicChestLines);
+		addSetting(trapChestLines);
+		addSetting(enderChestLines);
+		addSetting(chestCartLines);
+		addSetting(chestBoatLines);
+		addSetting(barrelLines);
+		addSetting(potLines);
+		addSetting(shulkerLines);
+		addSetting(hopperLines);
+		addSetting(hopperCartLines);
+		addSetting(dropperLines);
+		addSetting(dispenserLines);
+		addSetting(crafterLines);
+		addSetting(furnaceLines);
 	}
 	
 	@Override
@@ -181,6 +281,7 @@ public class ChestEspHack extends Hack implements UpdateListener,
 	{
 		groups.forEach(ChestEspGroup::clear);
 		doubleChestBoxes.clear();
+		doubleTrappedChestBoxes.clear();
 		chestBlockEntities.clear();
 		
 		ArrayList<BlockEntity> blockEntities =
@@ -263,7 +364,12 @@ public class ChestEspHack extends Hack implements UpdateListener,
 					Box box = BlockUtils.getBoundingBox(pos);
 					Box box2 = BlockUtils.getBoundingBox(otherPos);
 					Box doubleBox = box.union(box2);
-					doubleChestBoxes.add(doubleBox);
+					
+					// Add to appropriate list based on chest type
+					if(be instanceof TrappedChestBlockEntity)
+						doubleTrappedChestBoxes.add(doubleBox);
+					else
+						doubleChestBoxes.add(doubleBox);
 				}
 			}
 		}
@@ -273,9 +379,14 @@ public class ChestEspHack extends Hack implements UpdateListener,
 	public void onCameraTransformViewBobbing(
 		CameraTransformViewBobbingEvent event)
 	{
-		// We need to disable view bobbing even if style doesn't have lines
-		// because we'll always have tracer lines for double chests
-		event.cancel();
+		// Check if any line settings are enabled
+		boolean anyLinesEnabled = style.hasLines() || 
+			doubleChestLines.isChecked() || 
+			doubleTrappedChestLines.isChecked() ||
+			lineSettings.values().stream().anyMatch(CheckboxSetting::isChecked);
+		
+		if(anyLinesEnabled)
+			event.cancel();
 	}
 	
 	@Override
@@ -287,10 +398,10 @@ public class ChestEspHack extends Hack implements UpdateListener,
 		if(style.hasBoxes())
 			renderBoxes(matrixStack);
 		
-		if(style.hasLines())
-			renderTracers(matrixStack, partialTicks);
-		
-		// Always render tracers for double chests
+		// We now render tracers for each group individually
+		renderIndividualTracers(matrixStack, partialTicks);
+			
+		// Render tracers for double chests based on settings
 		renderDoubleChestTracers(matrixStack, partialTicks);
 	}
 	
@@ -299,6 +410,11 @@ public class ChestEspHack extends Hack implements UpdateListener,
 		for(ChestEspGroup group : groups)
 		{
 			if(!group.isEnabled())
+				continue;
+			
+			// Skip chest rendering if the setting is disabled
+			if(!renderChests.isChecked()
+				&& (group == basicChests || group == trapChests))
 				continue;
 			
 			List<Box> boxes = group.getBoxes();
@@ -311,7 +427,7 @@ public class ChestEspHack extends Hack implements UpdateListener,
 		}
 		
 		// Render double chest boxes with special color
-		if(!doubleChestBoxes.isEmpty())
+		if(!doubleChestBoxes.isEmpty() && renderChests.isChecked())
 		{
 			int quadsColor = doubleChestColor.getColorI(0x40);
 			int linesColor = doubleChestColor.getColorI(0x80);
@@ -321,13 +437,35 @@ public class ChestEspHack extends Hack implements UpdateListener,
 			RenderUtils.drawOutlinedBoxes(matrixStack, doubleChestBoxes,
 				linesColor, false);
 		}
+		
+		// Render double trapped chest boxes with special color
+		if(!doubleTrappedChestBoxes.isEmpty() && renderChests.isChecked())
+		{
+			int quadsColor = doubleTrappedChestColor.getColorI(0x40);
+			int linesColor = doubleTrappedChestColor.getColorI(0x80);
+			
+			RenderUtils.drawSolidBoxes(matrixStack, doubleTrappedChestBoxes,
+				quadsColor, false);
+			RenderUtils.drawOutlinedBoxes(matrixStack, doubleTrappedChestBoxes,
+				linesColor, false);
+		}
 	}
 	
-	private void renderTracers(MatrixStack matrixStack, float partialTicks)
+	private void renderIndividualTracers(MatrixStack matrixStack, float partialTicks)
 	{
 		for(ChestEspGroup group : groups)
 		{
 			if(!group.isEnabled())
+				continue;
+			
+			// Skip chest tracers if the setting is disabled
+			if(!renderChests.isChecked()
+				&& (group == basicChests || group == trapChests))
+				continue;
+			
+			// Check if lines for this group are enabled
+			CheckboxSetting lineSetting = lineSettings.get(group);
+			if(lineSetting == null || !lineSetting.isChecked())
 				continue;
 			
 			List<Box> boxes = group.getBoxes();
@@ -342,13 +480,29 @@ public class ChestEspHack extends Hack implements UpdateListener,
 	private void renderDoubleChestTracers(MatrixStack matrixStack,
 		float partialTicks)
 	{
-		if(doubleChestBoxes.isEmpty())
+		if(!renderChests.isChecked())
 			return;
 		
-		List<Vec3d> ends =
-			doubleChestBoxes.stream().map(Box::getCenter).toList();
-		int color = doubleChestColor.getColorI(0x80);
+		// Draw regular double chest tracers
+		if(!doubleChestBoxes.isEmpty())
+		{
+			List<Vec3d> ends =
+				doubleChestBoxes.stream().map(Box::getCenter).toList();
+			int color = doubleChestColor.getColorI(0x80);
+			
+			RenderUtils.drawTracers(matrixStack, partialTicks, ends, color,
+				false);
+		}
 		
-		RenderUtils.drawTracers(matrixStack, partialTicks, ends, color, false);
+		// Draw trapped double chest tracers
+		if(!doubleTrappedChestBoxes.isEmpty())
+		{
+			List<Vec3d> ends =
+				doubleTrappedChestBoxes.stream().map(Box::getCenter).toList();
+			int color = doubleTrappedChestColor.getColorI(0x80);
+			
+			RenderUtils.drawTracers(matrixStack, partialTicks, ends, color,
+				false);
+		}
 	}
 }
