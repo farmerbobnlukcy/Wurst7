@@ -197,7 +197,7 @@ public final class HackList implements UpdateListener
 	private final EnabledHacksFile enabledHacksFile;
 	private final Path profilesFolder =
 		WurstClient.INSTANCE.getWurstFolder().resolve("enabled hacks");
-	
+	private final HoleEspHack holeEspHack = new HoleEspHack();
 	private final EventManager eventManager =
 		WurstClient.INSTANCE.getEventManager();
 	
