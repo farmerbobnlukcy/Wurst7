@@ -60,6 +60,8 @@ public final class AutoSwordHack extends Hack implements UpdateListener
 		
 		addSetting(priority);
 		addSetting(switchBack);
+		addSetting(autoEatWait);
+		addSetting(ignoreAnimals);
 		addSetting(releaseTime);
 	}
 	
