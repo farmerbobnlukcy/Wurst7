@@ -7,11 +7,6 @@
  */
 package net.wurstclient.hacks;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.regex.Pattern;
-import java.util.stream.Stream;
-
 import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.loader.api.ModContainer;
 import net.fabricmc.loader.api.metadata.ModMetadata;
@@ -22,11 +17,7 @@ import net.minecraft.util.math.Direction;
 import net.wurstclient.Category;
 import net.wurstclient.SearchTags;
 import net.wurstclient.clickgui.screens.EditBlockListScreen;
-import net.wurstclient.events.GetAmbientOcclusionLightLevelListener;
-import net.wurstclient.events.RenderBlockEntityListener;
-import net.wurstclient.events.SetOpaqueCubeListener;
-import net.wurstclient.events.ShouldDrawSideListener;
-import net.wurstclient.events.UpdateListener;
+import net.wurstclient.events.*;
 import net.wurstclient.hack.Hack;
 import net.wurstclient.mixinterface.ISimpleOption;
 import net.wurstclient.settings.BlockListSetting;
@@ -35,6 +26,11 @@ import net.wurstclient.settings.SliderSetting;
 import net.wurstclient.settings.SliderSetting.ValueDisplay;
 import net.wurstclient.util.BlockUtils;
 import net.wurstclient.util.ChatUtils;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 @SearchTags({"XRay", "x ray", "OreFinder", "ore finder"})
 public final class XRayHack extends Hack implements UpdateListener,
@@ -196,6 +192,40 @@ public final class XRayHack extends Hack implements UpdateListener,
 	
 	public boolean isVisible(Block block, BlockPos pos)
 	{
+		// Check if this is any type of anvil
+		if(BlockUtils.isAnvil(block))
+		{
+			// If we have any anvil in the list, consider all anvil types
+			// visible
+			boolean anvilInList = oreNamesCache.contains("minecraft:anvil")
+				|| oreNamesCache.contains("minecraft:chipped_anvil")
+				|| oreNamesCache.contains("minecraft:damaged_anvil");
+			
+			if(anvilInList)
+			{
+				if(onlyExposed.isChecked() && pos != null)
+					return isExposed(pos);
+				
+				return true;
+			}
+		}
+		
+		// Check if this is any form of lava
+		if(BlockUtils.isLava(block))
+		{
+			// If lava is in the list, consider all lava forms visible
+			boolean lavaInList = oreNamesCache.contains("minecraft:lava");
+			
+			if(lavaInList)
+			{
+				if(onlyExposed.isChecked() && pos != null)
+					return isExposed(pos);
+				
+				return true;
+			}
+		}
+		
+		// Normal block visibility check
 		String name = BlockUtils.getName(block);
 		int index = Collections.binarySearch(oreNamesCache, name);
 		boolean visible = index >= 0;

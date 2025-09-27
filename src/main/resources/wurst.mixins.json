@@ -5,6 +5,7 @@
   "mixins": [],
   "client": [
     "AbstractBlockRenderContextMixin",
+        "AnvilBlockMixin",
     "AbstractBlockStateMixin",
     "AbstractSignEditScreenMixin",
     "AllowedAddressResolverMixin",
@@ -44,6 +45,7 @@
     "InGameOverlayRendererMixin",
     "KeyBindingMixin",
     "KeyboardMixin",
+      "LavaBlockMixin",
     "LanguageManagerMixin",
     "LightmapTextureManagerMixin",
     "LivingEntityRendererMixin",
