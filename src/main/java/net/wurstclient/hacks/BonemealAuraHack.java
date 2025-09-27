@@ -66,6 +66,13 @@ public final class BonemealAuraHack extends Hack implements HandleInputListener
 	
 	private final CheckboxSetting other = new CheckboxSetting("Other", false);
 	
+	private int emptyTickCounter = 0;
+	
+	private final CheckboxSetting autoSwitchToFarm = new CheckboxSetting(
+		"Auto-switch to AutoFarm",
+		"Automatically switches to AutoFarm when there are no more blocks to bonemeal",
+		true);
+	
 	public BonemealAuraHack()
 	{
 		super("BonemealAura");
@@ -78,11 +85,13 @@ public final class BonemealAuraHack extends Hack implements HandleInputListener
 		addSetting(stems);
 		addSetting(cocoa);
 		addSetting(other);
+		addSetting(autoSwitchToFarm);
 	}
 	
 	@Override
 	protected void onEnable()
 	{
+		emptyTickCounter = 0;
 		EVENTS.add(HandleInputListener.class, this);
 	}
 	
@@ -105,8 +114,26 @@ public final class BonemealAuraHack extends Hack implements HandleInputListener
 		// get valid blocks
 		ArrayList<BlockPos> validBlocks = getValidBlocks();
 		
+		// Check if there are no valid blocks
 		if(validBlocks.isEmpty())
+		{
+			emptyTickCounter++;
+			
+			// If nothing to do for several ticks and auto-switch is enabled
+			if(emptyTickCounter >= 10 && autoSwitchToFarm.isChecked())
+			{
+				// Disable BonemealAura and enable AutoFarm
+				setEnabled(false);
+				WURST.getHax().autoFarmHack.setEnabled(true);
+				return;
+			}
+			
 			return;
+		}else
+		{
+			// Reset counter if we found blocks
+			emptyTickCounter = 0;
+		}
 		
 		// wait for AutoFarm
 		if(WURST.getHax().autoFarmHack.isBusy())
