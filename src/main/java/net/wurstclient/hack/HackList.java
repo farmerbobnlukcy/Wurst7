@@ -7,6 +7,14 @@
  */
 package net.wurstclient.hack;
 
+import net.minecraft.util.crash.CrashException;
+import net.minecraft.util.crash.CrashReport;
+import net.wurstclient.WurstClient;
+import net.wurstclient.event.EventManager;
+import net.wurstclient.events.UpdateListener;
+import net.wurstclient.hacks.*;
+import net.wurstclient.util.json.JsonException;
+
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
@@ -18,16 +26,7 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import net.minecraft.util.crash.CrashException;
-import net.minecraft.util.crash.CrashReport;
-import net.wurstclient.WurstClient;
-import net.wurstclient.event.EventManager;
-import net.wurstclient.events.UpdateListener;
-import net.wurstclient.hacks.*;
-import net.wurstclient.util.json.JsonException;
-
-public final class HackList implements UpdateListener
-{
+public final class HackList implements UpdateListener {
 	public final AimAssistHack aimAssistHack = new AimAssistHack();
 	public final AirPlaceHack airPlaceHack = new AirPlaceHack();
 	public final AnchorAuraHack anchorAuraHack = new AnchorAuraHack();
@@ -35,7 +34,7 @@ public final class HackList implements UpdateListener
 	public final AntiBlindHack antiBlindHack = new AntiBlindHack();
 	public final AntiCactusHack antiCactusHack = new AntiCactusHack();
 	public final AntiEntityPushHack antiEntityPushHack =
-		new AntiEntityPushHack();
+			new AntiEntityPushHack();
 	public final AntiHungerHack antiHungerHack = new AntiHungerHack();
 	public final AntiKnockbackHack antiKnockbackHack = new AntiKnockbackHack();
 	public final AntiSpamHack antiSpamHack = new AntiSpamHack();
@@ -74,17 +73,17 @@ public final class HackList implements UpdateListener
 	public final BuildRandomHack buildRandomHack = new BuildRandomHack();
 	public final BunnyHopHack bunnyHopHack = new BunnyHopHack();
 	public final CameraDistanceHack cameraDistanceHack =
-		new CameraDistanceHack();
+			new CameraDistanceHack();
 	public final CameraNoClipHack cameraNoClipHack = new CameraNoClipHack();
 	public final CaveFinderHack caveFinderHack = new CaveFinderHack();
 	public final ChatTranslatorHack chatTranslatorHack =
-		new ChatTranslatorHack();
+			new ChatTranslatorHack();
 	public final ChestEspHack chestEspHack = new ChestEspHack();
 	public final ClickAuraHack clickAuraHack = new ClickAuraHack();
 	public final ClickGuiHack clickGuiHack = new ClickGuiHack();
 	public final CrashChestHack crashChestHack = new CrashChestHack();
 	public final CreativeFlightHack creativeFlightHack =
-		new CreativeFlightHack();
+			new CreativeFlightHack();
 	public final CriticalsHack criticalsHack = new CriticalsHack();
 	public final CrystalAuraHack crystalAuraHack = new CrystalAuraHack();
 	public final DerpHack derpHack = new DerpHack();
@@ -142,7 +141,7 @@ public final class HackList implements UpdateListener
 	public final NoOverlayHack noOverlayHack = new NoOverlayHack();
 	public final NoPumpkinHack noPumpkinHack = new NoPumpkinHack();
 	public final NoShieldOverlayHack noShieldOverlayHack =
-		new NoShieldOverlayHack();
+			new NoShieldOverlayHack();
 	public final NoSlowdownHack noSlowdownHack = new NoSlowdownHack();
 	public final NoVignetteHack noVignetteHack = new NoVignetteHack();
 	public final NoWeatherHack noWeatherHack = new NoWeatherHack();
@@ -191,33 +190,30 @@ public final class HackList implements UpdateListener
 	public final XRayHack xRayHack = new XRayHack();
 	public final CreeperEspHack creeperEspHack = new CreeperEspHack();
 	public final AFKGuardHack afkGuardHack = new AFKGuardHack();
+	public final LavaEspHack lavaEspHack = new LavaEspHack();
 	private final TreeMap<String, Hack> hax =
-		new TreeMap<>(String::compareToIgnoreCase);
+			new TreeMap<>(String::compareToIgnoreCase);
 	private final BedEspHack bedHack = new BedEspHack();
 	private final EnabledHacksFile enabledHacksFile;
 	private final Path profilesFolder =
-		WurstClient.INSTANCE.getWurstFolder().resolve("enabled hacks");
+			WurstClient.INSTANCE.getWurstFolder().resolve("enabled hacks");
 	private final HoleEspHack holeEspHack = new HoleEspHack();
 	private final EventManager eventManager =
-		WurstClient.INSTANCE.getEventManager();
+			WurstClient.INSTANCE.getEventManager();
 	
-	public HackList(Path enabledHacksFile)
-	{
+	public HackList(Path enabledHacksFile) {
 		this.enabledHacksFile = new EnabledHacksFile(enabledHacksFile);
 		
-		try
-		{
-			for(Field field : HackList.class.getDeclaredFields())
-			{
-				if(!field.getName().endsWith("Hack"))
+		try {
+			for (Field field : HackList.class.getDeclaredFields()) {
+				if (!field.getName().endsWith("Hack"))
 					continue;
 				
-				Hack hack = (Hack)field.get(this);
+				Hack hack = (Hack) field.get(this);
 				hax.put(hack.getName(), hack);
 			}
 			
-		}catch(Exception e)
-		{
+		} catch (Exception e) {
 			String message = "Initializing Wurst hacks";
 			CrashReport report = CrashReport.create(e, message);
 			throw new CrashException(report);
@@ -227,55 +223,45 @@ public final class HackList implements UpdateListener
 	}
 	
 	@Override
-	public void onUpdate()
-	{
+	public void onUpdate() {
 		enabledHacksFile.load(this);
 		eventManager.remove(UpdateListener.class, this);
 	}
 	
-	public void saveEnabledHax()
-	{
+	public void saveEnabledHax() {
 		enabledHacksFile.save(this);
 	}
 	
-	public Hack getHackByName(String name)
-	{
+	public Hack getHackByName(String name) {
 		return hax.get(name);
 	}
 	
-	public Collection<Hack> getAllHax()
-	{
+	public Collection<Hack> getAllHax() {
 		return Collections.unmodifiableCollection(hax.values());
 	}
 	
-	public int countHax()
-	{
+	public int countHax() {
 		return hax.size();
 	}
 	
-	public ArrayList<Path> listProfiles()
-	{
-		if(!Files.isDirectory(profilesFolder))
+	public ArrayList<Path> listProfiles() {
+		if (!Files.isDirectory(profilesFolder))
 			return new ArrayList<>();
 		
-		try(Stream<Path> files = Files.list(profilesFolder))
-		{
+		try (Stream<Path> files = Files.list(profilesFolder)) {
 			return files.filter(Files::isRegularFile)
-				.collect(Collectors.toCollection(ArrayList::new));
+					.collect(Collectors.toCollection(ArrayList::new));
 			
-		}catch(IOException e)
-		{
+		} catch (IOException e) {
 			throw new RuntimeException(e);
 		}
 	}
 	
-	public void loadProfile(String fileName) throws IOException, JsonException
-	{
+	public void loadProfile(String fileName) throws IOException, JsonException {
 		enabledHacksFile.loadProfile(this, profilesFolder.resolve(fileName));
 	}
 	
-	public void saveProfile(String fileName) throws IOException, JsonException
-	{
+	public void saveProfile(String fileName) throws IOException, JsonException {
 		enabledHacksFile.saveProfile(this, profilesFolder.resolve(fileName));
 	}
 }

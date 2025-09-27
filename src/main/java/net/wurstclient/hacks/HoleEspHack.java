@@ -7,10 +7,6 @@
  */
 package net.wurstclient.hacks;
 
-import java.awt.Color;
-import java.util.ArrayList;
-import java.util.List;
-
 import net.minecraft.block.BlockState;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.util.math.BlockPos;
@@ -22,45 +18,46 @@ import net.wurstclient.events.CameraTransformViewBobbingListener;
 import net.wurstclient.events.RenderListener;
 import net.wurstclient.events.UpdateListener;
 import net.wurstclient.hack.Hack;
-import net.wurstclient.settings.CheckboxSetting;
-import net.wurstclient.settings.ColorSetting;
-import net.wurstclient.settings.EspBoxSizeSetting;
-import net.wurstclient.settings.EspStyleSetting;
-import net.wurstclient.settings.SliderSetting;
+import net.wurstclient.settings.*;
 import net.wurstclient.settings.SliderSetting.ValueDisplay;
 import net.wurstclient.util.BlockUtils;
 import net.wurstclient.util.RenderUtils;
 
+import java.awt.*;
+import java.util.ArrayList;
+import java.util.List;
+
 @SearchTags({"hole esp", "fall", "pit", "danger"})
 public final class HoleEspHack extends Hack implements UpdateListener,
-		CameraTransformViewBobbingListener, RenderListener
+	CameraTransformViewBobbingListener, RenderListener
 {
+	private static final int ABSOLUTE_MIN_DEPTH = 2;
 	private final EspStyleSetting style = new EspStyleSetting();
 	
 	private final EspBoxSizeSetting boxSize = new EspBoxSizeSetting(
-			"\u00a7lAccurate\u00a7r mode shows the exact hitbox of each hole.\n"
-					+ "\u00a7lFancy\u00a7r mode shows slightly larger boxes that look better.");
+		"\u00a7lAccurate\u00a7r mode shows the exact hitbox of each hole.\n"
+			+ "\u00a7lFancy\u00a7r mode shows slightly larger boxes that look better.");
 	
 	private final ColorSetting color = new ColorSetting("Color",
-			"Dangerous holes will be highlighted in this color.", new Color(255, 0, 0));
+		"Dangerous holes will be highlighted in this color.",
+		new Color(255, 0, 0));
 	
-	private final SliderSetting minDepth = new SliderSetting("Min depth",
-			"Minimum hole depth to be highlighted.",
-			2, 1, 10, 1, ValueDisplay.INTEGER);
+	private final SliderSetting minDepth =
+		new SliderSetting("Min depth", "Minimum hole depth to be highlighted.",
+			2, 2, 10, 1, ValueDisplay.INTEGER);
 	
 	private final CheckboxSetting checkPlayerFeet = new CheckboxSetting(
-			"Check player feet",
-			"Highlights holes that are one block below the player's feet.",
-			true);
+		"Check player feet",
+		"Highlights holes that are one block below the player's feet.", true);
 	
 	private final SliderSetting range = new SliderSetting("Range",
-			"Maximum distance in blocks to search for holes.",
-			32, 8, 128, 8, ValueDisplay.INTEGER);
+		"Maximum distance in blocks to search for holes.", 32, 8, 128, 8,
+		ValueDisplay.INTEGER);
 	
 	private final SliderSetting maxHoles = new SliderSetting("Max holes",
-			"Maximum number of holes to highlight.\n"
-					+ "Higher values require more processing power.",
-			128, 32, 1024, 32, ValueDisplay.INTEGER);
+		"Maximum number of holes to highlight.\n"
+			+ "Higher values require more processing power.",
+		128, 32, 1024, 32, ValueDisplay.INTEGER);
 	
 	private final ArrayList<Box> holes = new ArrayList<>();
 	
@@ -128,26 +125,25 @@ public final class HoleEspHack extends Hack implements UpdateListener,
 				// Check if we should only look at the player's Y level
 				if(checkPlayerFeet.isChecked())
 				{
-					BlockPos pos = new BlockPos(
-							playerPos.getX() + x,
-							referenceY,
-							playerPos.getZ() + z);
+					BlockPos pos = new BlockPos(playerPos.getX() + x,
+						referenceY, playerPos.getZ() + z);
 					
 					if(checkHole(pos, minHoleDepth))
 					{
-						holes.add(BlockUtils.getBoundingBox(pos));
-						count++;
+						Box box = BlockUtils.getBoundingBox(pos);
+						if(box != null)
+						{
+							holes.add(box);
+							count++;
+						}
 					}
-				}
-				else
+				}else
 				{
 					// Search in a vertical range around the player
 					for(int y = -searchRange; y <= searchRange; y++)
 					{
-						BlockPos pos = new BlockPos(
-								playerPos.getX() + x,
-								playerPos.getY() + y,
-								playerPos.getZ() + z);
+						BlockPos pos = new BlockPos(playerPos.getX() + x,
+							playerPos.getY() + y, playerPos.getZ() + z);
 						
 						if(checkHole(pos, minHoleDepth))
 						{
@@ -163,6 +159,10 @@ public final class HoleEspHack extends Hack implements UpdateListener,
 	
 	private boolean checkHole(BlockPos pos, int minDepth)
 	{
+		// Enforce minimum depth of 2 blocks
+		if(minDepth < 2)
+			minDepth = 2;
+		
 		// Check if the current block is air
 		if(!isAir(pos))
 			return false;
@@ -176,6 +176,10 @@ public final class HoleEspHack extends Hack implements UpdateListener,
 		{
 			checkPos = checkPos.down();
 			
+			// Make sure the position is still in the world
+			if(checkPos == null || !isValidPos(checkPos))
+				break;
+			
 			if(isAir(checkPos))
 				depth++;
 			else
@@ -186,18 +190,39 @@ public final class HoleEspHack extends Hack implements UpdateListener,
 		return depth >= minDepth;
 	}
 	
+	private boolean isValidPos(BlockPos pos)
+	{
+		if(pos == null || MC.world == null)
+			return false;
+		
+		// Check if position is within the world bounds
+		return pos.getY() >= MC.world.getBottomY()
+			&& pos.getY() < MC.world.getTopYInclusive();
+	}
+	
 	private boolean isAir(BlockPos pos)
 	{
 		if(pos == null || MC.world == null)
 			return false;
 		
-		BlockState state = MC.world.getBlockState(pos);
-		return state.isAir();
+		// Check if position is valid before attempting to get block state
+		if(!isValidPos(pos))
+			return false;
+		
+		// Try-catch to prevent any unexpected exceptions
+		try
+		{
+			BlockState state = MC.world.getBlockState(pos);
+			return state != null && state.isAir();
+		}catch(Exception e)
+		{
+			return false;
+		}
 	}
 	
 	@Override
 	public void onCameraTransformViewBobbing(
-			CameraTransformViewBobbingEvent event)
+		CameraTransformViewBobbingEvent event)
 	{
 		if(style.hasLines())
 			event.cancel();
@@ -223,11 +248,13 @@ public final class HoleEspHack extends Hack implements UpdateListener,
 			
 			// Fill color with 0x40 alpha (semi-transparent)
 			int fillColor = boxColor & 0x00FFFFFF | 0x40000000;
-			RenderUtils.drawSolidBoxes(matrixStack, expandedBoxes, fillColor, false);
+			RenderUtils.drawSolidBoxes(matrixStack, expandedBoxes, fillColor,
+				false);
 			
 			// Outline color with 0x80 alpha (more opaque)
 			int outlineColor = boxColor & 0x00FFFFFF | 0x80000000;
-			RenderUtils.drawOutlinedBoxes(matrixStack, expandedBoxes, outlineColor, false);
+			RenderUtils.drawOutlinedBoxes(matrixStack, expandedBoxes,
+				outlineColor, false);
 		}
 		
 		if(style.hasLines())
@@ -239,7 +266,8 @@ public final class HoleEspHack extends Hack implements UpdateListener,
 			
 			// Tracer color with 0x80 alpha
 			int tracerColor = boxColor & 0x00FFFFFF | 0x80000000;
-			RenderUtils.drawTracers(matrixStack, partialTicks, centers, tracerColor, false);
+			RenderUtils.drawTracers(matrixStack, partialTicks, centers,
+				tracerColor, false);
 		}
 	}
 }
