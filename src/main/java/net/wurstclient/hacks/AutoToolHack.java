@@ -7,11 +7,9 @@
  */
 package net.wurstclient.hacks;
 
-import java.util.Optional;
-import java.util.OptionalInt;
-import java.util.stream.IntStream;
-
+import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
+import net.minecraft.block.Blocks;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.enchantment.Enchantment;
 import net.minecraft.enchantment.EnchantmentHelper;
@@ -38,6 +36,10 @@ import net.wurstclient.settings.SliderSetting.ValueDisplay;
 import net.wurstclient.util.BlockUtils;
 import net.wurstclient.util.InventoryUtils;
 
+import java.util.Optional;
+import java.util.OptionalInt;
+import java.util.stream.IntStream;
+
 @SearchTags({"tool", "AutoSwitch", "auto switch", "auto tool"})
 public final class AutoToolHack extends Hack
 	implements BlockBreakingProgressListener, UpdateListener
@@ -61,7 +63,31 @@ public final class AutoToolHack extends Hack
 			+ " previously selected slot.",
 		false);
 	
+	private final CheckboxSetting silkTouchForSpecialBlocks =
+		new CheckboxSetting("Silk Touch for Special",
+			"Always uses silk touch tools for special blocks like enchantment tables, "
+				+ "beacons, ender chests, etc.",
+			true);
+	
+	private final CheckboxSetting silkTouchForOres = new CheckboxSetting(
+		"Silk Touch for Ores",
+		"Always uses silk touch tools for valuable ores like diamond, emerald, etc.",
+		true);
+	
 	private int prevSelectedSlot;
+	
+	// Blocks that should always be harvested with silk touch when possible
+	private static final Block[] SPECIAL_SILK_TOUCH_BLOCKS =
+		{Blocks.ENCHANTING_TABLE, Blocks.ENDER_CHEST, Blocks.BEACON,
+			Blocks.SCULK_SHRIEKER, Blocks.SCULK_SENSOR, Blocks.SCULK_CATALYST};
+	
+	// Ores that should be harvested with silk touch when the setting is enabled
+	private static final Block[] SILK_TOUCH_ORES =
+		{Blocks.DIAMOND_ORE, Blocks.DEEPSLATE_DIAMOND_ORE, Blocks.EMERALD_ORE,
+			Blocks.DEEPSLATE_EMERALD_ORE, Blocks.LAPIS_ORE,
+			Blocks.DEEPSLATE_LAPIS_ORE, Blocks.REDSTONE_ORE,
+			Blocks.DEEPSLATE_REDSTONE_ORE, Blocks.COAL_ORE,
+			Blocks.DEEPSLATE_COAL_ORE};
 	
 	public AutoToolHack()
 	{
@@ -72,6 +98,8 @@ public final class AutoToolHack extends Hack
 		addSetting(useHands);
 		addSetting(repairMode);
 		addSetting(switchBack);
+		addSetting(silkTouchForSpecialBlocks);
+		addSetting(silkTouchForOres);
 	}
 	
 	@Override
@@ -158,12 +186,60 @@ public final class AutoToolHack extends Hack
 		ClientPlayerEntity player = MC.player;
 		PlayerInventory inventory = player.getInventory();
 		ItemStack heldItem = MC.player.getMainHandStack();
+		Block block = state.getBlock();
+		
+		// Check if this block requires silk touch
+		boolean needsSilkTouch =
+			requiresSilkTouch(block) || isOreForSilkTouch(block);
+		
+		// Check if the held item has silk touch
+		boolean heldItemHasSilkTouch = hasSilkTouch(heldItem);
 		
 		float bestSpeed = getMiningSpeed(heldItem, state);
 		if(isTooDamaged(heldItem, repairMode))
 			bestSpeed = 1;
+		// If we need silk touch but held item doesn't have it, consider it
+		// ineffective
+		if(needsSilkTouch && !heldItemHasSilkTouch)
+			bestSpeed = 1;
+		
 		int bestSlot = -1;
 		
+		// First scan for a tool with silk touch if needed
+		if(needsSilkTouch)
+		{
+			for(int slot = 0; slot < 9; slot++)
+			{
+				if(slot == inventory.selectedSlot)
+					continue;
+				
+				ItemStack stack = inventory.getStack(slot);
+				
+				// Skip if not silk touch
+				if(!hasSilkTouch(stack))
+					continue;
+				
+				float speed = getMiningSpeed(stack, state);
+				if(speed <= bestSpeed)
+					continue;
+				
+				if(!useSwords && stack.getItem() instanceof SwordItem)
+					continue;
+				
+				if(isTooDamaged(stack, repairMode))
+					continue;
+				
+				bestSpeed = speed;
+				bestSlot = slot;
+			}
+			
+			// If we found a silk touch tool, return it
+			if(bestSlot != -1)
+				return bestSlot;
+		}
+		
+		// If we didn't need silk touch or couldn't find a silk touch tool,
+		// proceed with normal logic
 		for(int slot = 0; slot < 9; slot++)
 		{
 			if(slot == inventory.selectedSlot)
@@ -179,6 +255,10 @@ public final class AutoToolHack extends Hack
 				continue;
 			
 			if(isTooDamaged(stack, repairMode))
+				continue;
+			
+			// If block needs silk touch, only consider tools with silk touch
+			if(needsSilkTouch && !hasSilkTouch(stack))
 				continue;
 			
 			bestSpeed = speed;
@@ -302,5 +382,55 @@ public final class AutoToolHack extends Hack
 		}
 		
 		return -1;
+	}
+	
+	/**
+	 * Checks if a block should always be harvested with silk touch
+	 */
+	private boolean requiresSilkTouch(Block block)
+	{
+		if(!silkTouchForSpecialBlocks.isChecked())
+			return false;
+		
+		for(Block specialBlock : SPECIAL_SILK_TOUCH_BLOCKS)
+			if(block == specialBlock)
+				return true;
+			
+		return false;
+	}
+	
+	/**
+	 * Checks if an ore block should be harvested with silk touch
+	 */
+	private boolean isOreForSilkTouch(Block block)
+	{
+		if(!silkTouchForOres.isChecked())
+			return false;
+		
+		for(Block oreBlock : SILK_TOUCH_ORES)
+			if(block == oreBlock)
+				return true;
+			
+		return false;
+	}
+	
+	/**
+	 * Checks if a tool has the silk touch enchantment
+	 */
+	private boolean hasSilkTouch(ItemStack stack)
+	{
+		if(stack.isEmpty())
+			return false;
+		
+		DynamicRegistryManager drm = WurstClient.MC.world.getRegistryManager();
+		Registry<Enchantment> registry =
+			drm.getOrThrow(RegistryKeys.ENCHANTMENT);
+		
+		Optional<Reference<Enchantment>> silkTouch =
+			registry.getOptional(Enchantments.SILK_TOUCH);
+		
+		return silkTouch
+			.map(entry -> EnchantmentHelper.getLevel(entry, stack) > 0)
+			.orElse(false);
 	}
 }
