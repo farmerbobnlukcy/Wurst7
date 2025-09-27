@@ -64,7 +64,7 @@ public class ChestEspHack extends Hack implements UpdateListener,
 		new ColorSetting("Ender color",
 			"Ender chests will be highlighted in this color.", Color.CYAN),
 		new CheckboxSetting("Include ender chests", true));
-
+	
 	private final SliderSetting enderChestMaxDistance = new SliderSetting(
 		"Ender chest max distance",
 		"Maximum distance at which ender chests will be rendered.\n"
@@ -154,17 +154,17 @@ public class ChestEspHack extends Hack implements UpdateListener,
 	private final CheckboxSetting chestBoatLines = new CheckboxSetting(
 		"Chest boat lines", "Show tracers for chest boats.", true);
 	
-	private final CheckboxSetting barrelLines = new CheckboxSetting(
-		"Barrel lines", "Show tracers for barrels.", true);
+	private final CheckboxSetting barrelLines =
+		new CheckboxSetting("Barrel lines", "Show tracers for barrels.", true);
 	
-	private final CheckboxSetting potLines = new CheckboxSetting(
-		"Pot lines", "Show tracers for pots.", true);
+	private final CheckboxSetting potLines =
+		new CheckboxSetting("Pot lines", "Show tracers for pots.", true);
 	
 	private final CheckboxSetting shulkerLines = new CheckboxSetting(
 		"Shulker lines", "Show tracers for shulker boxes.", true);
 	
-	private final CheckboxSetting hopperLines = new CheckboxSetting(
-		"Hopper lines", "Show tracers for hoppers.", true);
+	private final CheckboxSetting hopperLines =
+		new CheckboxSetting("Hopper lines", "Show tracers for hoppers.", true);
 	
 	private final CheckboxSetting hopperCartLines = new CheckboxSetting(
 		"Hopper cart lines", "Show tracers for hopper minecarts.", true);
@@ -208,11 +208,13 @@ public class ChestEspHack extends Hack implements UpdateListener,
 	private final CheckboxSetting doubleChestLines = new CheckboxSetting(
 		"Double chest lines", "Show tracers for double chests.", true);
 	
-	private final CheckboxSetting doubleTrappedChestLines = new CheckboxSetting(
-		"Double trapped chest lines", "Show tracers for double trapped chests.", true);
+	private final CheckboxSetting doubleTrappedChestLines =
+		new CheckboxSetting("Double trapped chest lines",
+			"Show tracers for double trapped chests.", true);
 	
 	// Map to associate groups with their line settings
-	private final Map<ChestEspGroup, CheckboxSetting> lineSettings = new HashMap<>();
+	private final Map<ChestEspGroup, CheckboxSetting> lineSettings =
+		new HashMap<>();
 	
 	public ChestEspHack()
 	{
@@ -321,14 +323,14 @@ public class ChestEspHack extends Hack implements UpdateListener,
 				// Only add ender chests within the maximum distance
 				BlockPos pos = blockEntity.getPos();
 				Vec3d playerPos = MC.player.getPos();
-				Vec3d chestPos = new Vec3d(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
+				Vec3d chestPos = new Vec3d(pos.getX() + 0.5, pos.getY() + 0.5,
+					pos.getZ() + 0.5);
 				double distance = playerPos.squaredDistanceTo(chestPos);
 				double maxDistSq = enderChestMaxDistance.getValueSq();
-
-				if (distance <= maxDistSq)
+				
+				if(distance <= maxDistSq)
 					enderChests.add(blockEntity);
-			}
-			else if(blockEntity instanceof ShulkerBoxBlockEntity)
+			}else if(blockEntity instanceof ShulkerBoxBlockEntity)
 				shulkerBoxes.add(blockEntity);
 			else if(blockEntity instanceof BarrelBlockEntity)
 				barrels.add(blockEntity);
@@ -398,10 +400,10 @@ public class ChestEspHack extends Hack implements UpdateListener,
 		CameraTransformViewBobbingEvent event)
 	{
 		// Check if any line settings are enabled
-		boolean anyLinesEnabled = style.hasLines() || 
-			doubleChestLines.isChecked() || 
-			doubleTrappedChestLines.isChecked() ||
-			lineSettings.values().stream().anyMatch(CheckboxSetting::isChecked);
+		boolean anyLinesEnabled =
+			style.hasLines() || doubleChestLines.isChecked()
+				|| doubleTrappedChestLines.isChecked() || lineSettings.values()
+					.stream().anyMatch(CheckboxSetting::isChecked);
 		
 		if(anyLinesEnabled)
 			event.cancel();
@@ -418,7 +420,7 @@ public class ChestEspHack extends Hack implements UpdateListener,
 		
 		// We now render tracers for each group individually
 		renderIndividualTracers(matrixStack, partialTicks);
-			
+		
 		// Render tracers for double chests based on settings
 		renderDoubleChestTracers(matrixStack, partialTicks);
 	}
@@ -436,9 +438,9 @@ public class ChestEspHack extends Hack implements UpdateListener,
 				continue;
 			
 			List<Box> boxes = group.getBoxes();
-
+			
 			// Ender chests are already filtered by distance in onUpdate
-
+			
 			int quadsColor = group.getColorI(0x40);
 			int linesColor = group.getColorI(0x80);
 			
@@ -472,7 +474,8 @@ public class ChestEspHack extends Hack implements UpdateListener,
 		}
 	}
 	
-	private void renderIndividualTracers(MatrixStack matrixStack, float partialTicks)
+	private void renderIndividualTracers(MatrixStack matrixStack,
+		float partialTicks)
 	{
 		for(ChestEspGroup group : groups)
 		{
