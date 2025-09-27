@@ -7,13 +7,6 @@
  */
 package net.wurstclient.hacks;
 
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
-
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import it.unimi.dsi.fastutil.objects.Object2IntMap.Entry;
 import net.minecraft.block.Blocks;
@@ -46,16 +39,19 @@ import net.wurstclient.hack.Hack;
 import net.wurstclient.hacks.autolibrarian.BookOffer;
 import net.wurstclient.hacks.autolibrarian.UpdateBooksSetting;
 import net.wurstclient.mixinterface.IKeyBinding;
-import net.wurstclient.settings.BookOffersSetting;
-import net.wurstclient.settings.CheckboxSetting;
-import net.wurstclient.settings.FacingSetting;
-import net.wurstclient.settings.SliderSetting;
+import net.wurstclient.settings.*;
 import net.wurstclient.settings.SliderSetting.ValueDisplay;
-import net.wurstclient.settings.SwingHandSetting;
 import net.wurstclient.settings.SwingHandSetting.SwingHand;
 import net.wurstclient.util.*;
 import net.wurstclient.util.BlockBreaker.BlockBreakingParams;
 import net.wurstclient.util.BlockPlacer.BlockPlacingParams;
+
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 @SearchTags({"auto librarian", "AutoVillager", "auto villager",
 	"VillagerTrainer", "villager trainer", "LibrarianTrainer",
@@ -116,15 +112,98 @@ public final class AutoLibrarianHack extends Hack
 			+ " by setting the amount of tries to trade.\n"
 			+ "Can be adjusted from 0 (off) to 20.",
 		1, 0, 20, 1, ValueDisplay.INTEGER.withLabel(0, "off"));
+	
+	private final SliderSetting goodDealThreshold = new SliderSetting(
+		"Good Deal Threshold",
+		"Stops and alerts you when finding a max-level enchanted book with a cost below this threshold.\n"
+			+ "This allows you to find good deals even if they're not on your wanted list.\n"
+			+ "Focuses on max-level enchantments for better efficiency.\n"
+			+ "Can be adjusted from 0 (off) to 64 emeralds.",
+		12, 0, 64, 1, ValueDisplay.INTEGER.withLabel(0, "off"));
+	
 	private final OverlayRenderer overlay = new OverlayRenderer();
 	private final HashSet<VillagerEntity> experiencedVillagers =
 		new HashSet<>();
+	
+	// Map of enchantments and their maximum levels
+	private static final java.util.Map<String, Integer> MAX_ENCHANTMENT_LEVELS =
+		initMaxEnchantmentLevels();
 	
 	private VillagerEntity villager;
 	private BlockPos jobSite;
 	private boolean placingJobSite;
 	private boolean breakingJobSite;
 	private int executionCount = 0;
+	
+	/**
+	 * Initialize the map of maximum enchantment levels
+	 */
+	private static java.util.Map<String, Integer> initMaxEnchantmentLevels()
+	{
+		java.util.Map<String, Integer> map = new java.util.HashMap<>();
+		
+		// Protection enchantments
+		map.put("minecraft:protection", 4);
+		map.put("minecraft:fire_protection", 4);
+		map.put("minecraft:blast_protection", 4);
+		map.put("minecraft:projectile_protection", 4);
+		map.put("minecraft:feather_falling", 4);
+		
+		// Damage enchantments
+		map.put("minecraft:sharpness", 5);
+		map.put("minecraft:smite", 5);
+		map.put("minecraft:bane_of_arthropods", 5);
+		map.put("minecraft:knockback", 2);
+		map.put("minecraft:fire_aspect", 2);
+		map.put("minecraft:looting", 3);
+		
+		// Bow enchantments
+		map.put("minecraft:power", 5);
+		map.put("minecraft:punch", 2);
+		map.put("minecraft:flame", 1);
+		map.put("minecraft:infinity", 1);
+		
+		// Tool enchantments
+		map.put("minecraft:efficiency", 5);
+		map.put("minecraft:silk_touch", 1);
+		map.put("minecraft:unbreaking", 3);
+		map.put("minecraft:fortune", 3);
+		
+		// Other enchantments
+		map.put("minecraft:thorns", 3);
+		map.put("minecraft:depth_strider", 3);
+		map.put("minecraft:respiration", 3);
+		map.put("minecraft:aqua_affinity", 1);
+		map.put("minecraft:mending", 1);
+		map.put("minecraft:sweeping", 3);
+		map.put("minecraft:riptide", 3);
+		map.put("minecraft:channeling", 1);
+		map.put("minecraft:impaling", 5);
+		map.put("minecraft:loyalty", 3);
+		map.put("minecraft:soul_speed", 3);
+		map.put("minecraft:swift_sneak", 3);
+		map.put("minecraft:piercing", 4);
+		map.put("minecraft:multishot", 1);
+		map.put("minecraft:quick_charge", 3);
+		map.put("minecraft:frost_walker", 2);
+		map.put("minecraft:binding_curse", 1);
+		map.put("minecraft:vanishing_curse", 1);
+		map.put("minecraft:luck_of_the_sea", 3);
+		map.put("minecraft:lure", 3);
+		
+		// Also add enchantments without the minecraft: prefix for compatibility
+		// with enchantment IDs that might not have the prefix
+		for(String key : new java.util.ArrayList<>(map.keySet()))
+		{
+			if(key.startsWith("minecraft:"))
+			{
+				String shortKey = key.substring("minecraft:".length());
+				map.put(shortKey, map.get(key));
+			}
+		}
+		
+		return java.util.Collections.unmodifiableMap(map);
+	}
 	
 	public AutoLibrarianHack()
 	{
@@ -134,6 +213,7 @@ public final class AutoLibrarianHack extends Hack
 		addSetting(lockInTrade);
 		addSetting(updateBooks);
 		addSetting(useMessages);
+		addSetting(goodDealThreshold);
 		addSetting(range);
 		addSetting(facing);
 		addSetting(swingHand);
@@ -165,7 +245,7 @@ public final class AutoLibrarianHack extends Hack
 		villager = null;
 		jobSite = null;
 		placingJobSite = false;
-		breakingJobSite = false;
+		// breakingJobSite = false;
 		experiencedVillagers.clear();
 	}
 	
@@ -249,13 +329,27 @@ public final class AutoLibrarianHack extends Hack
 					+ " for " + bookOffer.getFormattedPrice() + ".");
 			
 		}
-		// if wrong enchantment, break job site and start over
+		
+		// Check if this is a good deal - might pause automation
+		boolean isGoodDeal = checkForGoodDeal(bookOffer);
+		
+		// If it's a good deal but not on the wanted list, wait for the user
+		// decision
+		if(isGoodDeal && !wantedBooks.isWanted(bookOffer))
+		{
+			// Keep the trade screen open and wait for the user to decide
+			// User can manually close and re-enable the hack if they don't want
+			// it
+			setEnabled(false);
+			return;
+		}
+		
+		// if wrong enchantment, break the job site and start over
 		if(!wantedBooks.isWanted(bookOffer))
 		{
 			breakingJobSite = true;
 			if(this.useMessages.isChecked())
 			{
-				
 				System.out.println("Breaking job site...");
 			}
 			closeTradeScreen();
@@ -429,7 +523,7 @@ public final class AutoLibrarianHack extends Hack
 			return;
 		}
 		
-		// create realistic hit result
+		// create realistic hit results
 		Box box = villager.getBoundingBox();
 		Vec3d start = RotationUtils.getEyesPos();
 		Vec3d end = box.getCenter();
@@ -492,10 +586,99 @@ public final class AutoLibrarianHack extends Hack
 				continue;
 			}
 			
+			// Add debug log to help diagnose enchantment ID issues
+			if(useMessages.isChecked())
+			{
+				System.out.println("Found enchanted book: " + enchantment
+					+ " at level " + level + " for " + price + " emeralds");
+				
+				// Log max level info for this enchantment
+				int maxLevel =
+					MAX_ENCHANTMENT_LEVELS.getOrDefault(enchantment, -1);
+				if(maxLevel == -1)
+				{
+					// Try without minecraft: prefix
+					if(enchantment.startsWith("minecraft:"))
+					{
+						String shortKey =
+							enchantment.substring("minecraft:".length());
+						maxLevel =
+							MAX_ENCHANTMENT_LEVELS.getOrDefault(shortKey, 1);
+					}
+				}
+				System.out.println(
+					"Max level for " + enchantment + " is " + maxLevel);
+			}
+			
+			// Check if this is a good deal based on the threshold setting
+			checkForGoodDeal(bookOffer);
+			
 			return bookOffer;
 		}
 		
 		return null;
+	}
+	
+	/**
+	 * Checks if an enchanted book is below the good deal threshold
+	 * and alerts the player if it is.
+	 *
+	 * @param bookOffer
+	 *            the book offers to check
+	 * @return true if it's a good deal, false otherwise
+	 */
+	private boolean checkForGoodDeal(BookOffer bookOffer)
+	{
+		// If a threshold is off (0), return immediately
+		int threshold = goodDealThreshold.getValueI();
+		if(threshold == 0)
+			return false;
+		
+		// Check if the book's price is below our threshold
+		int price = bookOffer.price();
+		if(price <= threshold)
+		{
+			// Get enchantment info for display
+			String enchantmentName = bookOffer.getEnchantmentNameWithLevel();
+			
+			// Show notification in chat
+			ChatUtils.message("§a§lGOOD DEAL FOUND!§r");
+			ChatUtils.message("§e" + enchantmentName + "§r for §a"
+				+ bookOffer.getFormattedPrice() + "§r");
+			
+			// Add a notification sound
+			MC.player.playSound(
+				net.minecraft.sound.SoundEvents.ENTITY_EXPERIENCE_ORB_PICKUP,
+				1.0F, 1.0F);
+			
+			// Show a title notification
+			if(MC.inGameHud != null)
+			{
+				MC.inGameHud.setTitle(
+					net.minecraft.text.Text.literal("§a§lGOOD DEAL!"));
+				MC.inGameHud.setSubtitle(
+					net.minecraft.text.Text.literal("§e" + enchantmentName
+						+ "§r for §a" + bookOffer.getFormattedPrice()));
+				MC.inGameHud.setTitleTicks(10, 60, 20);
+			}
+			
+			// Don't break the job site if it's a good deal, but not on the
+			// wanted list
+			if(!wantedBooks.isWanted(bookOffer))
+			{
+				ChatUtils.message("§6This book is not on your wanted list.§r");
+				ChatUtils.message(
+					"§6Pausing automation - decide if you want this deal.§r");
+				
+				// Let the user decide if they want this book by temporarily
+				// pausing
+				return true;
+			}
+			
+			return true;
+		}
+		
+		return false;
 	}
 	
 	private void setTargetVillager()
