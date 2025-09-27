@@ -7,10 +7,6 @@
  */
 package net.wurstclient.util;
 
-import java.util.ArrayList;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
-
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
@@ -29,6 +25,10 @@ import net.minecraft.util.shape.VoxelShapes;
 import net.minecraft.world.CollisionView;
 import net.minecraft.world.RaycastContext;
 import net.wurstclient.WurstClient;
+
+import java.util.ArrayList;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 public enum BlockUtils
 {
@@ -123,12 +123,96 @@ public enum BlockUtils
 	
 	public static Box getBoundingBox(BlockPos pos)
 	{
-		return getOutlineShape(pos).getBoundingBox().offset(pos);
+		VoxelShape shape = getOutlineShape(pos);
+		if(shape.isEmpty())
+			return new Box(pos); // Return a default 1×1×1 box for empty shapes
+			
+		return shape.getBoundingBox().offset(pos);
 	}
 	
 	public static boolean canBeClicked(BlockPos pos)
 	{
 		return getOutlineShape(pos) != VoxelShapes.empty();
+	}
+	
+	/**
+	 * Returns a list of all registered block IDs in the game.
+	 * Useful for autocomplete functionality.
+	 *
+	 * @return list of block IDs like "minecraft:stone", "minecraft:dirt", etc.
+	 */
+	public static java.util.List<String> getAllBlockNames()
+	{
+		java.util.List<String> blockNames = new java.util.ArrayList<>();
+		
+		// Iterate through all registered blocks
+		Registry.BLOCK.forEach(block -> {
+			String name = getName(block);
+			blockNames.add(name);
+		});
+		
+		// Sort the list alphabetically
+		java.util.Collections.sort(blockNames);
+		
+		return blockNames;
+	}
+	
+	/**
+	 * Checks if the given block is any type of anvil.
+	 *
+	 * @param block
+	 *            the block to check
+	 * @return true if the block is any type of anvil
+	 */
+	public static boolean isAnvil(Block block)
+	{
+		return block == Blocks.ANVIL || block == Blocks.CHIPPED_ANVIL
+			|| block == Blocks.DAMAGED_ANVIL;
+	}
+	
+	/**
+	 * Checks if the given block name represents any type of anvil.
+	 *
+	 * @param blockName
+	 *            the block name to check
+	 * @return true if the block name represents any type of anvil
+	 */
+	public static boolean isAnvilName(String blockName)
+	{
+		return blockName.equals("minecraft:anvil")
+			|| blockName.equals("minecraft:chipped_anvil")
+			|| blockName.equals("minecraft:damaged_anvil");
+	}
+	
+	/**
+	 * Checks if the given block is any form of lava (flowing or stationary).
+	 *
+	 * @param block
+	 *            the block to check
+	 * @return true if the block is any form of lava
+	 */
+	public static boolean isLava(Block block)
+	{
+		if(block == null)
+			return false;
+		
+		return block == Blocks.LAVA
+			|| block instanceof net.minecraft.block.FluidBlock
+				&& ((net.minecraft.block.FluidBlock)block)
+					.getFluid() == net.minecraft.fluid.Fluids.LAVA;
+	}
+	
+	/**
+	 * Checks if the given block name represents any form of lava.
+	 *
+	 * @param blockName
+	 *            the block name to check
+	 * @return true if the block name represents any form of lava
+	 */
+	public static boolean isLavaName(String blockName)
+	{
+		return blockName.equals("minecraft:lava")
+			|| blockName.equals("minecraft:flowing_lava");
 	}
 	
 	public static boolean isOpaqueFullCube(BlockPos pos)
