@@ -38,7 +38,8 @@ import java.util.ArrayList;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public enum WurstClient {
+public enum WurstClient
+{
 	INSTANCE;
 	
 	public static MinecraftClient MC;
@@ -70,11 +71,12 @@ public enum WurstClient {
 	private ProblematicResourcePackDetector problematicPackDetector;
 	private Path wurstFolder;
 	
-	public void initialize() {
+	public void initialize()
+	{
 		System.out.println("Starting Wurst Client...");
 		
 		MC = MinecraftClient.getInstance();
-		IMC = (IMinecraftClient) MC;
+		IMC = (IMinecraftClient)MC;
 		wurstFolder = createWurstFolder();
 		
 		Path analyticsFile = wurstFolder.resolve("analytics.json");
@@ -115,7 +117,7 @@ public enum WurstClient {
 		eventManager.add(ChatOutputListener.class, cmdProcessor);
 		
 		KeybindProcessor keybindProcessor =
-				new KeybindProcessor(hax, keybinds, cmdProcessor);
+			new KeybindProcessor(hax, keybinds, cmdProcessor);
 		eventManager.add(KeyPressListener.class, keybindProcessor);
 		
 		hud = new IngameHUD();
@@ -136,91 +138,110 @@ public enum WurstClient {
 		altManager = new AltManager(altsFile, encFolder);
 	}
 	
-	private Path createWurstFolder() {
+	private Path createWurstFolder()
+	{
 		Path dotMinecraftFolder = MC.runDirectory.toPath().normalize();
 		Path wurstFolder = dotMinecraftFolder.resolve("wurst");
 		
-		try {
+		try
+		{
 			Files.createDirectories(wurstFolder);
 			
-		} catch (IOException e) {
+		}catch(IOException e)
+		{
 			throw new RuntimeException(
-					"Couldn't create .minecraft/wurst folder.", e);
+				"Couldn't create .minecraft/wurst folder.", e);
 		}
 		
 		return wurstFolder;
 	}
 	
-	public String translate(String key, Object... args) {
+	public String translate(String key, Object... args)
+	{
 		return translator.translate(key, args);
 	}
 	
-	public PlausibleAnalytics getPlausible() {
+	public PlausibleAnalytics getPlausible()
+	{
 		return plausible;
 	}
 	
-	public EventManager getEventManager() {
+	public EventManager getEventManager()
+	{
 		return eventManager;
 	}
 	
-	public void saveSettings() {
+	public void saveSettings()
+	{
 		settingsFile.save();
 	}
 	
-	public ArrayList<Path> listSettingsProfiles() {
-		if (!Files.isDirectory(settingsProfileFolder))
+	public ArrayList<Path> listSettingsProfiles()
+	{
+		if(!Files.isDirectory(settingsProfileFolder))
 			return new ArrayList<>();
 		
-		try (Stream<Path> files = Files.list(settingsProfileFolder)) {
+		try(Stream<Path> files = Files.list(settingsProfileFolder))
+		{
 			return files.filter(Files::isRegularFile)
-					.collect(Collectors.toCollection(ArrayList::new));
+				.collect(Collectors.toCollection(ArrayList::new));
 			
-		} catch (IOException e) {
+		}catch(IOException e)
+		{
 			throw new RuntimeException(e);
 		}
 	}
 	
 	public void loadSettingsProfile(String fileName)
-			throws IOException, JsonException {
+		throws IOException, JsonException
+	{
 		settingsFile.loadProfile(settingsProfileFolder.resolve(fileName));
 	}
 	
 	public void saveSettingsProfile(String fileName)
-			throws IOException, JsonException {
+		throws IOException, JsonException
+	{
 		settingsFile.saveProfile(settingsProfileFolder.resolve(fileName));
 	}
 	
-	public HackList getHax() {
+	public HackList getHax()
+	{
 		return hax;
 	}
 	
-	public CmdList getCmds() {
+	public CmdList getCmds()
+	{
 		return cmds;
 	}
 	
-	public OtfList getOtfs() {
+	public OtfList getOtfs()
+	{
 		return otfs;
 	}
 	
-	public Feature getFeatureByName(String name) {
+	public Feature getFeatureByName(String name)
+	{
 		Hack hack = getHax().getHackByName(name);
-		if (hack != null)
+		if(hack != null)
 			return hack;
 		
 		Command cmd = getCmds().getCmdByName(name.substring(1));
-		if (cmd != null)
+		if(cmd != null)
 			return cmd;
 		
 		OtherFeature otf = getOtfs().getOtfByName(name);
 		return otf;
 	}
 	
-	public KeybindList getKeybinds() {
+	public KeybindList getKeybinds()
+	{
 		return keybinds;
 	}
 	
-	public ClickGui getGui() {
-		if (!guiInitialized) {
+	public ClickGui getGui()
+	{
+		if(!guiInitialized)
+		{
 			guiInitialized = true;
 			gui.init();
 		}
@@ -228,56 +249,69 @@ public enum WurstClient {
 		return gui;
 	}
 	
-	public Navigator getNavigator() {
+	public Navigator getNavigator()
+	{
 		return navigator;
 	}
 	
-	public CmdProcessor getCmdProcessor() {
+	public CmdProcessor getCmdProcessor()
+	{
 		return cmdProcessor;
 	}
 	
-	public IngameHUD getHud() {
+	public IngameHUD getHud()
+	{
 		return hud;
 	}
 	
-	public RotationFaker getRotationFaker() {
+	public RotationFaker getRotationFaker()
+	{
 		return rotationFaker;
 	}
 	
-	public FriendsList getFriends() {
+	public FriendsList getFriends()
+	{
 		return friends;
 	}
 	
-	public WurstTranslator getTranslator() {
+	public WurstTranslator getTranslator()
+	{
 		return translator;
 	}
 	
-	public boolean isEnabled() {
+	public boolean isEnabled()
+	{
 		return enabled;
 	}
 	
-	public void setEnabled(boolean enabled) {
+	public void setEnabled(boolean enabled)
+	{
 		this.enabled = enabled;
 		
-		if (!enabled) {
+		if(!enabled)
+		{
 			hax.panicHack.setEnabled(true);
 			hax.panicHack.onUpdate();
 		}
 	}
 	
-	public WurstUpdater getUpdater() {
+	public WurstUpdater getUpdater()
+	{
 		return updater;
 	}
 	
-	public ProblematicResourcePackDetector getProblematicPackDetector() {
+	public ProblematicResourcePackDetector getProblematicPackDetector()
+	{
 		return problematicPackDetector;
 	}
 	
-	public Path getWurstFolder() {
+	public Path getWurstFolder()
+	{
 		return wurstFolder;
 	}
 	
-	public AltManager getAltManager() {
+	public AltManager getAltManager()
+	{
 		return altManager;
 	}
 }

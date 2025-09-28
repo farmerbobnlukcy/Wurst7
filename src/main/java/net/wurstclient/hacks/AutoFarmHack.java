@@ -36,28 +36,28 @@ import java.util.stream.Stream;
 
 @SearchTags({"auto farm", "crop", "AutoHarvest", "auto harvest"})
 public final class AutoFarmHack extends Hack
-		implements UpdateListener, RenderListener {
+	implements UpdateListener, RenderListener
+{
 	private final SliderSetting range =
-			new SliderSetting("Range", 5, 1, 6, 0.05, ValueDisplay.DECIMAL);
+		new SliderSetting("Range", 5, 1, 6, 0.05, ValueDisplay.DECIMAL);
 	
 	private final CheckboxSetting replant =
-			new CheckboxSetting("Replant", true);
+		new CheckboxSetting("Replant", true);
 	
 	private final CheckboxSetting plantCrops =
-			new CheckboxSetting("Plant Crops",
-					"Plants crops when looking at tilled farmland\n"
-							+ "while holding plantable items (seeds, potatoes, etc.)",
-					true);
-	
-	private final CheckboxSetting autoSwitchToBonemeal = new CheckboxSetting(
-			"Auto-switch to BonemealAura",
-			"Automatically switches to BonemealAura when there are no more blocks to harvest or plant",
+		new CheckboxSetting("Plant Crops",
+			"Plants crops when looking at tilled farmland\n"
+				+ "while holding plantable items (seeds, potatoes, etc.)",
 			true);
 	
-	private final CheckboxSetting ignoreSugarCane = new CheckboxSetting(
-			"Ignore Sugar Cane",
-			"When enabled, AutoFarm will not harvest sugar cane.",
-			false);
+	private final CheckboxSetting autoSwitchToBonemeal = new CheckboxSetting(
+		"Auto-switch to BonemealAura",
+		"Automatically switches to BonemealAura when there are no more blocks to harvest or plant",
+		true);
+	
+	private final CheckboxSetting ignoreSugarCane =
+		new CheckboxSetting("Ignore Sugar Cane",
+			"When enabled, AutoFarm will not harvest sugar cane.", false);
 	
 	private final HashMap<Block, Item> seeds = new HashMap<>();
 	
@@ -97,7 +97,8 @@ public final class AutoFarmHack extends Hack
 	private boolean busy;
 	private int emptyTickCounter = 0;
 	
-	public AutoFarmHack() {
+	public AutoFarmHack()
+	{
 		super("AutoFarm");
 		
 		setCategory(Category.BLOCKS);
@@ -109,7 +110,8 @@ public final class AutoFarmHack extends Hack
 	}
 	
 	@Override
-	protected void onEnable() {
+	protected void onEnable()
+	{
 		plants.clear();
 		emptyTickCounter = 0;
 		
@@ -118,11 +120,13 @@ public final class AutoFarmHack extends Hack
 	}
 	
 	@Override
-	protected void onDisable() {
+	protected void onDisable()
+	{
 		EVENTS.remove(UpdateListener.class, this);
 		EVENTS.remove(RenderListener.class, this);
 		
-		if (currentlyHarvesting != null) {
+		if(currentlyHarvesting != null)
+		{
 			MC.interactionManager.breakingBlock = true;
 			MC.interactionManager.cancelBlockBreaking();
 			currentlyHarvesting = null;
@@ -137,7 +141,8 @@ public final class AutoFarmHack extends Hack
 	}
 	
 	@Override
-	public void onUpdate() {
+	public void onUpdate()
+	{
 		currentlyHarvesting = null;
 		Vec3d eyesVec = RotationUtils.getEyesPos();
 		BlockPos eyesBlock = BlockPos.ofFloored(eyesVec);
@@ -146,10 +151,10 @@ public final class AutoFarmHack extends Hack
 		
 		// get nearby, non-empty blocks
 		ArrayList<BlockPos> blocks =
-				BlockUtils.getAllInBoxStream(eyesBlock, blockRange)
-						.filter(pos -> pos.getSquaredDistance(eyesVec) <= rangeSq)
-						.filter(BlockUtils::canBeClicked)
-						.collect(Collectors.toCollection(ArrayList::new));
+			BlockUtils.getAllInBoxStream(eyesBlock, blockRange)
+				.filter(pos -> pos.getSquaredDistance(eyesVec) <= rangeSq)
+				.filter(BlockUtils::canBeClicked)
+				.collect(Collectors.toCollection(ArrayList::new));
 		
 		// check for any new plants and add them to the map
 		updatePlants(blocks);
@@ -158,77 +163,86 @@ public final class AutoFarmHack extends Hack
 		ArrayList<BlockPos> blocksToReplant = new ArrayList<>();
 		
 		// Check if the Plant Crops feature should be used
-		if (plantCrops.isChecked() && !WURST.getHax().freecamHack.isEnabled()) {
+		if(plantCrops.isChecked() && !WURST.getHax().freecamHack.isEnabled())
+		{
 			// Try to plant crops when looking at farmland
-			if (tryPlantCrop()) {
+			if(tryPlantCrop())
+			{
 				// If we planted something, skip other actions this tick
 				busy = true;
 				renderer.updateVertexBuffers(blocksToHarvest, plants.keySet(),
-						blocksToReplant);
+					blocksToReplant);
 				return;
 			}
 		}
 		
 		// don't place or break any blocks while Freecam is enabled
-		if (!WURST.getHax().freecamHack.isEnabled()) {
+		if(!WURST.getHax().freecamHack.isEnabled())
+		{
 			// check which of the nearby blocks can be harvested
 			blocksToHarvest = getBlocksToHarvest(eyesVec, blocks);
 			
 			// do a new search to find empty blocks that can be replanted
-			if (replant.isChecked())
+			if(replant.isChecked())
 				blocksToReplant =
-						getBlocksToReplant(eyesVec, eyesBlock, rangeSq, blockRange);
+					getBlocksToReplant(eyesVec, eyesBlock, rangeSq, blockRange);
 		}
 		
 		// first, try to replant
 		boolean replanting = replant(blocksToReplant);
 		
 		// if we can't replant, harvest instead
-		if (!replanting)
+		if(!replanting)
 			harvest(blocksToHarvest.stream());
 		
 		// update busy state
 		busy = replanting || currentlyHarvesting != null;
 		
 		// Check if there's nothing to do
-		if (!busy) {
+		if(!busy)
+		{
 			emptyTickCounter++;
 			
 			// If nothing to do for several ticks and auto-switch is enabled
-			if (emptyTickCounter >= 10 && autoSwitchToBonemeal.isChecked()) {
+			if(emptyTickCounter >= 10 && autoSwitchToBonemeal.isChecked())
+			{
 				// Check if player has bonemeal
-				if (hasBonemealInInventory()) {
+				if(hasBonemealInInventory())
+				{
 					// Disable AutoFarm and enable BonemealAura
 					setEnabled(false);
 					WURST.getHax().bonemealAuraHack.setEnabled(true);
 				}
 			}
-		} else {
+		}else
+		{
 			// Reset counter if we're doing something
 			emptyTickCounter = 0;
 		}
 		
 		// update renderer
 		renderer.updateVertexBuffers(blocksToHarvest, plants.keySet(),
-				blocksToReplant);
+			blocksToReplant);
 	}
 	
 	/**
 	 * Checks if the player has bone meal in their inventory.
 	 */
-	private boolean hasBonemealInInventory() {
+	private boolean hasBonemealInInventory()
+	{
 		// Check main hand
-		if (MC.player.getMainHandStack().isOf(Items.BONE_MEAL))
+		if(MC.player.getMainHandStack().isOf(Items.BONE_MEAL))
 			return true;
 		
 		// Check offhand
-		if (MC.player.getOffHandStack().isOf(Items.BONE_MEAL))
+		if(MC.player.getOffHandStack().isOf(Items.BONE_MEAL))
 			return true;
 		
 		// Check hotbar and inventory
-		for (int slot = 0; slot < 36; slot++) {
+		for(int slot = 0; slot < 36; slot++)
+		{
 			ItemStack stack = MC.player.getInventory().getStack(slot);
-			if (stack.isOf(Items.BONE_MEAL))
+			if(stack.isOf(Items.BONE_MEAL))
 				return true;
 		}
 		
@@ -236,7 +250,8 @@ public final class AutoFarmHack extends Hack
 	}
 	
 	@Override
-	public void onRender(MatrixStack matrixStack, float partialTicks) {
+	public void onRender(MatrixStack matrixStack, float partialTicks)
+	{
 		renderer.render(matrixStack);
 		overlay.render(matrixStack, partialTicks, currentlyHarvesting);
 	}
@@ -244,14 +259,17 @@ public final class AutoFarmHack extends Hack
 	/**
 	 * Returns true if AutoFarm is currently harvesting or replanting something.
 	 */
-	public boolean isBusy() {
+	public boolean isBusy()
+	{
 		return busy;
 	}
 	
-	private void updatePlants(List<BlockPos> blocks) {
-		for (BlockPos pos : blocks) {
+	private void updatePlants(List<BlockPos> blocks)
+	{
+		for(BlockPos pos : blocks)
+		{
 			Item seed = seeds.get(BlockUtils.getBlock(pos));
-			if (seed == null)
+			if(seed == null)
 				continue;
 			
 			plants.put(pos, seed);
@@ -259,108 +277,115 @@ public final class AutoFarmHack extends Hack
 	}
 	
 	private ArrayList<BlockPos> getBlocksToHarvest(Vec3d eyesVec,
-	                                               ArrayList<BlockPos> blocks) {
+		ArrayList<BlockPos> blocks)
+	{
 		return blocks.parallelStream().filter(this::shouldBeHarvested)
-				.sorted(Comparator
-						.comparingDouble(pos -> pos.getSquaredDistance(eyesVec)))
-				.collect(Collectors.toCollection(ArrayList::new));
+			.sorted(Comparator
+				.comparingDouble(pos -> pos.getSquaredDistance(eyesVec)))
+			.collect(Collectors.toCollection(ArrayList::new));
 	}
 	
-	private boolean shouldBeHarvested(BlockPos pos) {
+	private boolean shouldBeHarvested(BlockPos pos)
+	{
 		Block block = BlockUtils.getBlock(pos);
 		BlockState state = BlockUtils.getState(pos);
 		
-		if (block instanceof CropBlock)
-			return ((CropBlock) block).isMature(state);
+		if(block instanceof CropBlock)
+			return ((CropBlock)block).isMature(state);
 		
-		if (block instanceof NetherWartBlock)
+		if(block instanceof NetherWartBlock)
 			return state.get(NetherWartBlock.AGE) >= 3;
 		
-		if (block instanceof CocoaBlock)
+		if(block instanceof CocoaBlock)
 			return state.get(CocoaBlock.AGE) >= 2;
 		
-		if (block == Blocks.PUMPKIN || block == Blocks.MELON)
+		if(block == Blocks.PUMPKIN || block == Blocks.MELON)
 			return true;
 		
-		if (block instanceof SugarCaneBlock)
-			return !ignoreSugarCane.isChecked() &&
-					BlockUtils.getBlock(pos.down()) instanceof SugarCaneBlock
-					&& !(BlockUtils
+		if(block instanceof SugarCaneBlock)
+			return !ignoreSugarCane.isChecked()
+				&& BlockUtils.getBlock(pos.down()) instanceof SugarCaneBlock
+				&& !(BlockUtils
 					.getBlock(pos.down(2)) instanceof SugarCaneBlock);
 		
-		if (block instanceof CactusBlock)
+		if(block instanceof CactusBlock)
 			return BlockUtils.getBlock(pos.down()) instanceof CactusBlock
-					&& !(BlockUtils.getBlock(pos.down(2)) instanceof CactusBlock);
+				&& !(BlockUtils.getBlock(pos.down(2)) instanceof CactusBlock);
 		
-		if (block instanceof KelpPlantBlock)
+		if(block instanceof KelpPlantBlock)
 			return BlockUtils.getBlock(pos.down()) instanceof KelpPlantBlock
-					&& !(BlockUtils
+				&& !(BlockUtils
 					.getBlock(pos.down(2)) instanceof KelpPlantBlock);
 		
-		if (block instanceof BambooBlock)
+		if(block instanceof BambooBlock)
 			return BlockUtils.getBlock(pos.down()) instanceof BambooBlock
-					&& !(BlockUtils.getBlock(pos.down(2)) instanceof BambooBlock);
+				&& !(BlockUtils.getBlock(pos.down(2)) instanceof BambooBlock);
 		
 		return false;
 	}
 	
 	private ArrayList<BlockPos> getBlocksToReplant(Vec3d eyesVec,
-	                                               BlockPos eyesBlock, double rangeSq, int blockRange) {
+		BlockPos eyesBlock, double rangeSq, int blockRange)
+	{
 		return BlockUtils.getAllInBoxStream(eyesBlock, blockRange)
-				.filter(pos -> pos.getSquaredDistance(eyesVec) <= rangeSq)
-				.filter(pos -> BlockUtils.getState(pos).isReplaceable())
-				.filter(pos -> plants.containsKey(pos)).filter(this::canBeReplanted)
-				.sorted(Comparator
-						.comparingDouble(pos -> pos.getSquaredDistance(eyesVec)))
-				.collect(Collectors.toCollection(ArrayList::new));
+			.filter(pos -> pos.getSquaredDistance(eyesVec) <= rangeSq)
+			.filter(pos -> BlockUtils.getState(pos).isReplaceable())
+			.filter(pos -> plants.containsKey(pos)).filter(this::canBeReplanted)
+			.sorted(Comparator
+				.comparingDouble(pos -> pos.getSquaredDistance(eyesVec)))
+			.collect(Collectors.toCollection(ArrayList::new));
 	}
 	
-	private boolean canBeReplanted(BlockPos pos) {
+	private boolean canBeReplanted(BlockPos pos)
+	{
 		Item item = plants.get(pos);
 		
-		if (item == Items.WHEAT_SEEDS || item == Items.CARROT
-				|| item == Items.POTATO || item == Items.BEETROOT_SEEDS
-				|| item == Items.PUMPKIN_SEEDS || item == Items.MELON_SEEDS)
+		if(item == Items.WHEAT_SEEDS || item == Items.CARROT
+			|| item == Items.POTATO || item == Items.BEETROOT_SEEDS
+			|| item == Items.PUMPKIN_SEEDS || item == Items.MELON_SEEDS)
 			return BlockUtils.getBlock(pos.down()) instanceof FarmlandBlock;
 		
-		if (item == Items.NETHER_WART)
+		if(item == Items.NETHER_WART)
 			return BlockUtils.getBlock(pos.down()) instanceof SoulSandBlock;
 		
-		if (item == Items.COCOA_BEANS)
+		if(item == Items.COCOA_BEANS)
 			return BlockUtils.getState(pos.north()).isIn(BlockTags.JUNGLE_LOGS)
-					|| BlockUtils.getState(pos.east()).isIn(BlockTags.JUNGLE_LOGS)
-					|| BlockUtils.getState(pos.south()).isIn(BlockTags.JUNGLE_LOGS)
-					|| BlockUtils.getState(pos.west()).isIn(BlockTags.JUNGLE_LOGS);
+				|| BlockUtils.getState(pos.east()).isIn(BlockTags.JUNGLE_LOGS)
+				|| BlockUtils.getState(pos.south()).isIn(BlockTags.JUNGLE_LOGS)
+				|| BlockUtils.getState(pos.west()).isIn(BlockTags.JUNGLE_LOGS);
 		
 		return false;
 	}
 	
-	private boolean replant(List<BlockPos> blocksToReplant) {
+	private boolean replant(List<BlockPos> blocksToReplant)
+	{
 		// check cooldown
-		if (MC.itemUseCooldown > 0)
+		if(MC.itemUseCooldown > 0)
 			return false;
 		
 		// check if already holding one of the seeds needed for blocksToReplant
 		Optional<Item> heldSeed = blocksToReplant.stream().map(plants::get)
-				.distinct().filter(item -> MC.player.isHolding(item)).findFirst();
+			.distinct().filter(item -> MC.player.isHolding(item)).findFirst();
 		
 		// if so, try to replant the blocks that need that seed
-		if (heldSeed.isPresent()) {
+		if(heldSeed.isPresent())
+		{
 			// get the seed and the hand that is holding it
 			Item item = heldSeed.get();
 			Hand hand = MC.player.getMainHandStack().isOf(item) ? Hand.MAIN_HAND
-					: Hand.OFF_HAND;
+				: Hand.OFF_HAND;
 			
 			// filter out blocks that need a different seed
 			ArrayList<BlockPos> blocksToReplantWithHeldSeed =
-					blocksToReplant.stream().filter(pos -> plants.get(pos) == item)
-							.collect(Collectors.toCollection(ArrayList::new));
+				blocksToReplant.stream().filter(pos -> plants.get(pos) == item)
+					.collect(Collectors.toCollection(ArrayList::new));
 			
-			for (BlockPos pos : blocksToReplantWithHeldSeed) {
+			for(BlockPos pos : blocksToReplantWithHeldSeed)
+			{
 				// skip over blocks that we can't reach
 				BlockPlacingParams params =
-						BlockPlacer.getBlockPlacingParams(pos);
-				if (params == null || params.distanceSq() > range.getValueSq())
+					BlockPlacer.getBlockPlacingParams(pos);
+				if(params == null || params.distanceSq() > range.getValueSq())
 					continue;
 				
 				// face block
@@ -368,14 +393,14 @@ public final class AutoFarmHack extends Hack
 				
 				// place seed
 				ActionResult result = MC.interactionManager
-						.interactBlock(MC.player, hand, params.toHitResult());
+					.interactBlock(MC.player, hand, params.toHitResult());
 				
 				// swing arm
 				// Note: All SwingHand types correspond to SwingSource.CLIENT
-				if (result instanceof ActionResult.Success success
-						&& success.swingSource() == ActionResult.SwingSource.CLIENT)
+				if(result instanceof ActionResult.Success success
+					&& success.swingSource() == ActionResult.SwingSource.CLIENT)
 					SwingHand.SERVER.swing(hand); // intentional use of SERVER
-				
+					
 				// reset cooldown
 				MC.itemUseCooldown = 4;
 				return true;
@@ -383,15 +408,16 @@ public final class AutoFarmHack extends Hack
 		}
 		
 		// otherwise, find a block that we can reach and have seeds for
-		for (BlockPos pos : blocksToReplant) {
+		for(BlockPos pos : blocksToReplant)
+		{
 			// skip over blocks that we can't reach
 			BlockPlacingParams params = BlockPlacer.getBlockPlacingParams(pos);
-			if (params == null || params.distanceSq() > range.getValueSq())
+			if(params == null || params.distanceSq() > range.getValueSq())
 				continue;
 			
 			// try to select the seed (returns false if we don't have it)
 			Item item = plants.get(pos);
-			if (InventoryUtils.selectItem(item))
+			if(InventoryUtils.selectItem(item))
 				return true;
 		}
 		
@@ -404,9 +430,10 @@ public final class AutoFarmHack extends Hack
 	 *
 	 * @return true if a crop was planted
 	 */
-	private boolean tryPlantCrop() {
+	private boolean tryPlantCrop()
+	{
 		// Check cooldown
-		if (MC.itemUseCooldown > 0)
+		if(MC.itemUseCooldown > 0)
 			return false;
 		
 		// Get what the player is holding
@@ -417,33 +444,35 @@ public final class AutoFarmHack extends Hack
 		Item heldItem = null;
 		Hand plantHand = null;
 		
-		if (plantableItems.containsKey(mainHandStack.getItem())) {
+		if(plantableItems.containsKey(mainHandStack.getItem()))
+		{
 			heldItem = mainHandStack.getItem();
 			plantHand = Hand.MAIN_HAND;
-		} else if (plantableItems.containsKey(offHandStack.getItem())) {
+		}else if(plantableItems.containsKey(offHandStack.getItem()))
+		{
 			heldItem = offHandStack.getItem();
 			plantHand = Hand.OFF_HAND;
 		}
 		
 		// Return if player isn't holding a plantable item
-		if (heldItem == null || plantHand == null)
+		if(heldItem == null || plantHand == null)
 			return false;
 		
 		// Special case for nether wart which needs soul sand, not farmland
-		if (heldItem == Items.NETHER_WART)
+		if(heldItem == Items.NETHER_WART)
 			return tryPlantNetherWart(plantHand);
 		
 		// Check if player is looking at farmland
 		net.minecraft.util.hit.HitResult hitResult = MC.crosshairTarget;
-		if (hitResult.getType() != net.minecraft.util.hit.HitResult.Type.BLOCK)
+		if(hitResult.getType() != net.minecraft.util.hit.HitResult.Type.BLOCK)
 			return false;
 		
 		BlockPos pos =
-				((net.minecraft.util.hit.BlockHitResult) hitResult).getBlockPos();
+			((net.minecraft.util.hit.BlockHitResult)hitResult).getBlockPos();
 		Block block = BlockUtils.getBlock(pos);
 		
 		// Must be looking at farmland
-		if (!(block instanceof FarmlandBlock))
+		if(!(block instanceof FarmlandBlock))
 			return false;
 		
 		// Check the block above the farmland
@@ -451,16 +480,16 @@ public final class AutoFarmHack extends Hack
 		BlockState stateAbove = BlockUtils.getState(plantPos);
 		
 		// The block above must be replaceable (air, etc.)
-		if (!stateAbove.isReplaceable())
+		if(!stateAbove.isReplaceable())
 			return false;
 		
 		// Get block placing parameters
 		BlockPlacingParams params = BlockPlacer.getBlockPlacingParams(plantPos);
-		if (params == null)
+		if(params == null)
 			return false;
 		
 		// Must be within range
-		if (params.distanceSq() > range.getValueSq())
+		if(params.distanceSq() > range.getValueSq())
 			return false;
 		
 		// Face the position
@@ -468,11 +497,11 @@ public final class AutoFarmHack extends Hack
 		
 		// Plant the crop
 		ActionResult result = MC.interactionManager.interactBlock(MC.player,
-				plantHand, params.toHitResult());
+			plantHand, params.toHitResult());
 		
 		// Swing hand animation if successful
-		if (result instanceof ActionResult.Success success
-				&& success.swingSource() == ActionResult.SwingSource.CLIENT)
+		if(result instanceof ActionResult.Success success
+			&& success.swingSource() == ActionResult.SwingSource.CLIENT)
 			SwingHand.SERVER.swing(plantHand);
 		
 		// Set cooldown
@@ -483,18 +512,19 @@ public final class AutoFarmHack extends Hack
 	/**
 	 * Special case for planting nether wart on soul sand
 	 */
-	private boolean tryPlantNetherWart(Hand plantHand) {
+	private boolean tryPlantNetherWart(Hand plantHand)
+	{
 		// Check if player is looking at soul sand
 		net.minecraft.util.hit.HitResult hitResult = MC.crosshairTarget;
-		if (hitResult.getType() != net.minecraft.util.hit.HitResult.Type.BLOCK)
+		if(hitResult.getType() != net.minecraft.util.hit.HitResult.Type.BLOCK)
 			return false;
 		
 		BlockPos pos =
-				((net.minecraft.util.hit.BlockHitResult) hitResult).getBlockPos();
+			((net.minecraft.util.hit.BlockHitResult)hitResult).getBlockPos();
 		Block block = BlockUtils.getBlock(pos);
 		
 		// Must be looking at soul sand
-		if (!(block instanceof SoulSandBlock))
+		if(!(block instanceof SoulSandBlock))
 			return false;
 		
 		// Check the block above the soul sand
@@ -502,16 +532,16 @@ public final class AutoFarmHack extends Hack
 		BlockState stateAbove = BlockUtils.getState(plantPos);
 		
 		// The block above must be replaceable (air, etc.)
-		if (!stateAbove.isReplaceable())
+		if(!stateAbove.isReplaceable())
 			return false;
 		
 		// Get block placing parameters
 		BlockPlacingParams params = BlockPlacer.getBlockPlacingParams(plantPos);
-		if (params == null)
+		if(params == null)
 			return false;
 		
 		// Must be within range
-		if (params.distanceSq() > range.getValueSq())
+		if(params.distanceSq() > range.getValueSq())
 			return false;
 		
 		// Face the position
@@ -519,11 +549,11 @@ public final class AutoFarmHack extends Hack
 		
 		// Plant the nether wart
 		ActionResult result = MC.interactionManager.interactBlock(MC.player,
-				plantHand, params.toHitResult());
+			plantHand, params.toHitResult());
 		
 		// Swing hand animation if successful
-		if (result instanceof ActionResult.Success success
-				&& success.swingSource() == ActionResult.SwingSource.CLIENT)
+		if(result instanceof ActionResult.Success success
+			&& success.swingSource() == ActionResult.SwingSource.CLIENT)
 			SwingHand.SERVER.swing(plantHand);
 		
 		// Set cooldown
@@ -531,14 +561,16 @@ public final class AutoFarmHack extends Hack
 		return true;
 	}
 	
-	private void harvest(Stream<BlockPos> stream) {
+	private void harvest(Stream<BlockPos> stream)
+	{
 		// Break all blocks in creative mode
-		if (MC.player.getAbilities().creativeMode) {
+		if(MC.player.getAbilities().creativeMode)
+		{
 			MC.interactionManager.cancelBlockBreaking();
 			overlay.resetProgress();
 			
 			ArrayList<BlockPos> blocks = cache.filterOutRecentBlocks(stream);
-			if (blocks.isEmpty())
+			if(blocks.isEmpty())
 				return;
 			
 			currentlyHarvesting = blocks.get(0);
@@ -548,9 +580,10 @@ public final class AutoFarmHack extends Hack
 		
 		// Break the first valid block in survival mode
 		currentlyHarvesting =
-				stream.filter(BlockBreaker::breakOneBlock).findFirst().orElse(null);
+			stream.filter(BlockBreaker::breakOneBlock).findFirst().orElse(null);
 		
-		if (currentlyHarvesting == null) {
+		if(currentlyHarvesting == null)
+		{
 			MC.interactionManager.cancelBlockBreaking();
 			overlay.resetProgress();
 			return;

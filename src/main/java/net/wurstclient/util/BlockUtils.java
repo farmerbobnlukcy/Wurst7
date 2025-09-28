@@ -146,7 +146,7 @@ public enum BlockUtils
 		java.util.List<String> blockNames = new java.util.ArrayList<>();
 		
 		// Iterate through all registered blocks
-		Registry.BLOCK.forEach(block -> {
+		Registries.BLOCK.forEach(block -> {
 			String name = getName(block);
 			blockNames.add(name);
 		});
@@ -196,10 +196,16 @@ public enum BlockUtils
 		if(block == null)
 			return false;
 		
-		return block == Blocks.LAVA
-			|| block instanceof net.minecraft.block.FluidBlock
-				&& ((net.minecraft.block.FluidBlock)block)
-					.getFluid() == net.minecraft.fluid.Fluids.LAVA;
+		// Check for lava block directly
+		if(block == Blocks.LAVA)
+			return true;
+		
+		// Check block ID for lava-related blocks
+		Identifier blockId = Registries.BLOCK.getId(block);
+		String blockName = blockId.toString();
+		
+		return blockName.equals("minecraft:lava")
+			|| blockName.equals("minecraft:flowing_lava");
 	}
 	
 	/**

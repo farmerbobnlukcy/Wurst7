@@ -1,0 +1,14 @@
+	private void onGetOutlineShape(BlockState state, BlockView world,
+		BlockPos pos, net.minecraft.block.ShapeContext context,
+		CallbackInfoReturnable<net.minecraft.util.shape.VoxelShape> cir)
+	{
+		// Only do this when X-Ray is active
+		if(!WurstClient.INSTANCE.getHax().xRayHack.isEnabled())
+			return;
+
+		// Return the regular anvil shape for all anvil types
+		Block anvilBlock = Blocks.ANVIL;
+		cir.setReturnValue(
+			anvilBlock.getOutlineShape(anvilBlock.getDefaultState(), world, pos, context));
+	}
+}
