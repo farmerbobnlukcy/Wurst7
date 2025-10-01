@@ -10,12 +10,7 @@ package net.wurstclient.hacks;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.attribute.EntityAttributes;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.MaceItem;
-import net.minecraft.item.MiningToolItem;
-import net.minecraft.item.SwordItem;
-import net.minecraft.item.TridentItem;
+import net.minecraft.item.*;
 import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.wurstclient.Category;
@@ -38,6 +33,9 @@ public final class AutoSwordHack extends Hack implements UpdateListener
 		"Auto Eat Wait", "wait for autoeat to complete", false);
 	private final CheckboxSetting ignoreAnimals = new CheckboxSetting(
 		"Ignore Animals", "ignores animals or friendly mobx", true);
+	private final CheckboxSetting ignoreVillagers = new CheckboxSetting(
+		"Ignore Villagers", "ignores villagers and related mobs", true);
+	
 	private final CheckboxSetting switchBack = new CheckboxSetting(
 		"Switch back", "Switches back to the previously selected slot after"
 			+ " \u00a7lRelease time\u00a7r has passed.",
@@ -62,6 +60,7 @@ public final class AutoSwordHack extends Hack implements UpdateListener
 		addSetting(switchBack);
 		addSetting(autoEatWait);
 		addSetting(ignoreAnimals);
+		addSetting(ignoreVillagers);
 		addSetting(releaseTime);
 	}
 	
@@ -88,7 +87,8 @@ public final class AutoSwordHack extends Hack implements UpdateListener
 			Entity entity = ((EntityHitResult)MC.crosshairTarget).getEntity();
 			
 			if(entity instanceof LivingEntity
-				&& EntityUtils.IS_ATTACKABLE.test(entity))
+				&& EntityUtils.IS_ATTACKABLE.test(entity)
+				&& shouldAttackEntity(entity))
 				setSlot(entity);
 		}
 		
@@ -100,6 +100,36 @@ public final class AutoSwordHack extends Hack implements UpdateListener
 		}
 		
 		resetSlot();
+	}
+	
+	private boolean shouldAttackEntity(Entity entity)
+	{
+		// Check if we should ignore villagers
+		if(ignoreVillagers.isChecked() && isVillager(entity))
+			return false;
+		
+		// Check if we should ignore animals
+		if(ignoreAnimals.isChecked() && isAnimal(entity))
+			return false;
+		
+		return true;
+	}
+	
+	private boolean isAnimal(Entity entity)
+	{
+		// Check common animal types from vanilla Minecraft
+		return entity instanceof net.minecraft.entity.passive.AnimalEntity
+			|| entity instanceof net.minecraft.entity.passive.GolemEntity
+			|| entity instanceof net.minecraft.entity.passive.TameableEntity
+			|| entity instanceof net.minecraft.entity.passive.FishEntity;
+	}
+	
+	private boolean isVillager(Entity entity)
+	{
+		// Check if the entity is a villager or related mob (like wandering
+		// trader)
+		return entity.getType().toString().toLowerCase().contains("villager")
+			|| entity.getClass().getName().toLowerCase().contains("villager");
 	}
 	
 	public void setSlot(Entity entity)
