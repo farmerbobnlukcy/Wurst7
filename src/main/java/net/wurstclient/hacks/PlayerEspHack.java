@@ -7,17 +7,11 @@
  */
 package net.wurstclient.hacks;
 
-import java.awt.Toolkit;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.UUID;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
 import net.minecraft.client.network.AbstractClientPlayerEntity;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.sound.SoundEvents;
+import net.minecraft.text.Text;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
@@ -41,6 +35,11 @@ import net.wurstclient.util.RenderUtils;
 import net.wurstclient.util.RenderUtils.ColoredBox;
 import net.wurstclient.util.RenderUtils.ColoredPoint;
 
+import java.awt.*;
+import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
 @SearchTags({"player esp", "PlayerTracers", "player tracers"})
 public final class PlayerEspHack extends Hack implements UpdateListener,
 	CameraTransformViewBobbingListener, RenderListener
@@ -57,10 +56,19 @@ public final class PlayerEspHack extends Hack implements UpdateListener,
 		"Plays a system beep sound when players come within the alert distance.",
 		true);
 	
-	private final SliderSetting alertDistance = new SliderSetting(
-		"Alert Distance",
-		"Distance in blocks at which sound alerts will trigger for players.",
-		20, 5, 100, 1, SliderSetting.ValueDisplay.DECIMAL);
+	private final CheckboxSetting titleAlerts = new CheckboxSetting(
+		"Title Alerts",
+		"Displays a title message when players come within the alert distance.",
+		true);
+	
+	private final CheckboxSetting gameplaySounds =
+		new CheckboxSetting("Gameplay Sounds",
+			"Plays Minecraft sounds when players are detected.", true);
+	
+	private final SliderSetting alertDistance =
+		new SliderSetting("Alert Distance",
+			"Distance in blocks at which alerts will trigger for players.", 20,
+			5, 100, 1, SliderSetting.ValueDisplay.DECIMAL);
 	
 	private final EntityFilterList entityFilters = new EntityFilterList(
 		new FilterSleepingSetting("Won't show sleeping players.", false),
@@ -71,6 +79,13 @@ public final class PlayerEspHack extends Hack implements UpdateListener,
 	// Track player UUIDs we've already alerted about
 	private final Set<UUID> alertedPlayers = new HashSet<>();
 	
+	// Random number generator for varying sounds
+	private final Random random = new Random();
+	
+	// Cooldown for title alerts (in milliseconds)
+	private long lastTitleTime = 0;
+	private static final long TITLE_COOLDOWN = 2000; // 2 seconds
+	
 	public PlayerEspHack()
 	{
 		super("PlayerESP");
@@ -78,6 +93,8 @@ public final class PlayerEspHack extends Hack implements UpdateListener,
 		addSetting(style);
 		addSetting(boxSize);
 		addSetting(soundAlerts);
+		addSetting(titleAlerts);
+		addSetting(gameplaySounds);
 		addSetting(alertDistance);
 		entityFilters.forEach(this::addSetting);
 	}
@@ -116,10 +133,15 @@ public final class PlayerEspHack extends Hack implements UpdateListener,
 		
 		players.addAll(stream.collect(Collectors.toList()));
 		
-		// Sound alert logic
-		if(soundAlerts.isChecked())
+		// Alert logic
+		boolean anySoundAlerts = soundAlerts.isChecked();
+		boolean anyTitleAlerts = titleAlerts.isChecked();
+		boolean anyGameplaySounds = gameplaySounds.isChecked();
+		
+		// Only process if any alert type is enabled
+		if(anySoundAlerts || anyTitleAlerts || anyGameplaySounds)
 		{
-			// Process sound alerts for each player
+			// Process alerts for each player
 			for(PlayerEntity player : players)
 			{
 				float distance = MC.player.distanceTo(player);
@@ -130,8 +152,17 @@ public final class PlayerEspHack extends Hack implements UpdateListener,
 					// Check if we haven't alerted about this player yet
 					if(!alertedPlayers.contains(player.getUuid()))
 					{
-						// Play system beep
-						Toolkit.getDefaultToolkit().beep();
+						// Play system beep if enabled
+						if(anySoundAlerts)
+							Toolkit.getDefaultToolkit().beep();
+						
+						// Show title alert if enabled
+						if(anyTitleAlerts)
+							showTitleAlert(player);
+						
+						// Play gameplay sounds if enabled
+						if(anyGameplaySounds)
+							playAlertSounds();
 						
 						// Add player to alerted set
 						alertedPlayers.add(player.getUuid());
@@ -139,8 +170,8 @@ public final class PlayerEspHack extends Hack implements UpdateListener,
 				}else
 				{
 					// If the player moves out of range, remove them from the
-					// alerted set
-					// so they'll trigger another alert if they come back in
+					// alerted set so they'll trigger another alert if they come
+					// back in
 					// range
 					alertedPlayers.remove(player.getUuid());
 				}
@@ -202,5 +233,50 @@ public final class PlayerEspHack extends Hack implements UpdateListener,
 		float g = MathHelper.clamp(f, 0, 1);
 		float[] rgb = {r, g, 0};
 		return RenderUtils.toIntColor(rgb, 0.5F);
+	}
+	
+	/**
+	 * Displays a title message on the player's screen
+	 */
+	private void showTitleAlert(PlayerEntity detectedPlayer)
+	{
+		// Check if it's been long enough since the last title message
+		long currentTime = System.currentTimeMillis();
+		if(currentTime - lastTitleTime < TITLE_COOLDOWN)
+			return;
+		
+		lastTitleTime = currentTime;
+		
+		String playerName = detectedPlayer.getName().getString();
+		String distance =
+			String.format("%.1f", MC.player.distanceTo(detectedPlayer));
+		
+		// Show title and subtitle
+		MC.inGameHud.setTitle(Text.literal("§c§lPLAYER DETECTED"));
+		MC.inGameHud.setSubtitle(Text.literal(
+			"§e" + playerName + " §f- §e" + distance + " blocks away"));
+		MC.inGameHud.setTitleTicks(10, 30, 10); // fade in, stay, fade out
+	}
+	
+	/**
+	 * Plays multiple Minecraft sounds in different categories
+	 */
+	private void playAlertSounds()
+	{
+		if(MC.player == null || MC.world == null)
+			return;
+			
+		// Simply use the player's built-in playSound method which is designed
+		// for client use
+		MC.player.playSound(SoundEvents.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0F,
+			1.0F);
+		MC.player.playSound(SoundEvents.ENTITY_ENDER_DRAGON_GROWL, 0.3F, 1.0F);
+		MC.player.playSound(SoundEvents.BLOCK_ANVIL_LAND, 0.3F, 2.0F);
+		
+		// Play a random additional sound for variety
+		if(random.nextBoolean())
+			MC.player.playSound(SoundEvents.ENTITY_WITHER_SPAWN, 0.15F, 0.5F);
+		else
+			MC.player.playSound(SoundEvents.ENTITY_BLAZE_AMBIENT, 0.3F, 0.5F);
 	}
 }
