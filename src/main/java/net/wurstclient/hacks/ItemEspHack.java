@@ -10,6 +10,7 @@ package net.wurstclient.hacks;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.ItemEntity;
+import net.minecraft.text.Text;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 import net.wurstclient.Category;
@@ -18,10 +19,7 @@ import net.wurstclient.events.CameraTransformViewBobbingListener;
 import net.wurstclient.events.RenderListener;
 import net.wurstclient.events.UpdateListener;
 import net.wurstclient.hack.Hack;
-import net.wurstclient.settings.ColorSetting;
-import net.wurstclient.settings.EspBoxSizeSetting;
-import net.wurstclient.settings.EspStyleSetting;
-import net.wurstclient.settings.FileSetting;
+import net.wurstclient.settings.*;
 import net.wurstclient.util.EntityUtils;
 import net.wurstclient.util.RenderUtils;
 import net.wurstclient.util.StreamUtils;
@@ -30,6 +28,7 @@ import java.awt.*;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
@@ -51,6 +50,14 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 					+ "The names must match the item's ID (e.g., minecraft:diamond).",
 			"item_esp_filters", this::createDefaultFilterList);
 	
+	private final CheckboxSetting dashedLines = new CheckboxSetting(
+			"Dashed lines", "Draw tracers as dashed lines instead of solid lines.",
+			true);
+	
+	private final SliderSetting dashLength = new SliderSetting("Dash length",
+			"Length of each dash in the dashed line.", 0.5, 0.1, 3.0, 0.1,
+			SliderSetting.ValueDisplay.DECIMAL);
+	
 	private final Set<String> filteredItems = new HashSet<>();
 	private final ArrayList<ItemEntity> items = new ArrayList<>();
 	
@@ -61,6 +68,9 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 		addSetting(boxSize);
 		addSetting(color);
 		addSetting(filterList);
+		addSetting(dashedLines);
+		addSetting(dashLength);
+		addSetting(showItemInfo);
 	}
 	
 	private void createDefaultFilterList(Path folder) {
@@ -133,6 +143,57 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 				items.add(item);
 			}
 		}
+		
+		// Find the item player is looking at
+		if (showItemInfo.isChecked() && System.currentTimeMillis() - lastInfoUpdateTime >= INFO_UPDATE_DELAY) {
+			updateTargetItem();
+			lastInfoUpdateTime = System.currentTimeMillis();
+		}
+	}
+	
+	/**
+	 * Finds the item that the player is currently looking at
+	 * and updates the targetItem field.
+	 */
+	private void updateTargetItem() {
+		if (MC.player == null || items.isEmpty()) {
+			targetItem = null;
+			return;
+		}
+		
+		// Get player's look vector
+		Vec3d cameraPos = MC.player.getCameraPosVec(1.0F);
+		Vec3d lookVec = MC.player.getRotationVec(1.0F).normalize();
+		
+		// Find closest item in player's line of sight
+		double closestDistance = Double.MAX_VALUE;
+		ItemEntity closestItem = null;
+		
+		for (ItemEntity item : items) {
+			// Get the center of the item
+			Vec3d itemPos = item.getBoundingBox().getCenter();
+			
+			// Calculate vector from camera to item
+			Vec3d cameraToItem = itemPos.subtract(cameraPos);
+			double distanceToItem = cameraToItem.length();
+			
+			// Skip items that are too far away (more than 32 blocks)
+			if (distanceToItem > 32)
+				continue;
+			
+			// Project the camera-to-item vector onto the look vector
+			double dot = cameraToItem.normalize().dotProduct(lookVec);
+			
+			// Consider items within a certain angle in front of the player
+			if (dot > 0.9) { // Roughly 25 degrees on each side
+				if (distanceToItem < closestDistance) {
+					closestDistance = distanceToItem;
+					closestItem = item;
+				}
+			}
+		}
+		
+		targetItem = closestItem;
 	}
 	
 	@Override
@@ -162,8 +223,43 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 			for (ItemEntity e : items)
 				ends.add(EntityUtils.getLerpedBox(e, partialTicks).getCenter());
 			
-			RenderUtils.drawTracers(matrixStack, partialTicks, ends, lineColor,
-					false);
+			if (dashedLines.isChecked())
+				RenderUtils.drawDashedTracers(matrixStack, partialTicks, ends, lineColor,
+						false, (float) dashLength.getValue());
+			else
+				RenderUtils.drawTracers(matrixStack, partialTicks, ends, lineColor,
+						false);
+		}
+		
+		// Display information about the target item
+		displayTargetItemInfo();
+	}
+	
+	/**
+	 * Displays information about the target item as a subtitle.
+	 */
+	private void displayTargetItemInfo() {
+		if (!showItemInfo.isChecked() || targetItem == null || MC.player == null)
+			return;
+		
+		// Get item details
+		String itemName = targetItem.getStack().getName().getString();
+		int quantity = targetItem.getStack().getCount();
+		
+		// Calculate distance
+		double distance = MC.player.getPos().distanceTo(targetItem.getPos());
+		DecimalFormat df = new DecimalFormat("0.0");
+		String formattedDistance = df.format(distance);
+		
+		// Create and display the subtitle
+		String message = "§e" + itemName + " §fx" + quantity + " §7(" + formattedDistance + "m)";
+		MC.inGameHud.setSubtitle(Text.of(message));
+		
+		// Set an empty title to make the subtitle visible without a title
+		if (MC.inGameHud.title == null || MC.inGameHud.title.getString().isEmpty()) {
+			MC.inGameHud.setTitle(Text.of(""));
+			// Set a short title stay time so it will only show while looking at item
+			MC.inGameHud.setTitleTicks(1, 2, 1);
 		}
 	}
 }
