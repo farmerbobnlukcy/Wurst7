@@ -12,6 +12,7 @@ import net.fabricmc.loader.api.ModContainer;
 import net.fabricmc.loader.api.metadata.ModMetadata;
 import net.minecraft.block.Block;
 import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.text.Text;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.wurstclient.Category;
@@ -26,6 +27,7 @@ import net.wurstclient.settings.SliderSetting;
 import net.wurstclient.settings.SliderSetting.ValueDisplay;
 import net.wurstclient.util.BlockUtils;
 import net.wurstclient.util.ChatUtils;
+import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -35,7 +37,7 @@ import java.util.stream.Stream;
 @SearchTags({"XRay", "x ray", "OreFinder", "ore finder"})
 public final class XRayHack extends Hack implements UpdateListener,
 	SetOpaqueCubeListener, GetAmbientOcclusionLightLevelListener,
-	ShouldDrawSideListener, RenderBlockEntityListener
+	ShouldDrawSideListener, RenderBlockEntityListener, KeyPressListener
 {
 	private final BlockListSetting ores = new BlockListSetting("Ores",
 		"A list of blocks that X-Ray will show. They don't have to be just ores"
@@ -94,6 +96,11 @@ public final class XRayHack extends Hack implements UpdateListener,
 	private final ThreadLocal<BlockPos.Mutable> mutablePosForExposedCheck =
 		ThreadLocal.withInitial(BlockPos.Mutable::new);
 	
+	// State tracking for right alt key toggling
+	private boolean wasEnabled = false;
+	private boolean switchedToInvert = false;
+	private static final int KEY_RIGHT_ALT = GLFW.GLFW_KEY_RIGHT_ALT;
+	
 	public XRayHack()
 	{
 		super("X-Ray");
@@ -115,13 +122,18 @@ public final class XRayHack extends Hack implements UpdateListener,
 	{
 		// cache block names in case the setting changes while X-Ray is enabled
 		oreNamesCache = new ArrayList<>(ores.getBlockNames());
-		
+		XRayInvertHack xrayInvert = WURST.getHax().xRayInvertHack;
+		if(xrayInvert.isEnabled())
+		{
+			xrayInvert.setEnabled(false);
+		}
 		// add event listeners
 		EVENTS.add(UpdateListener.class, this);
 		EVENTS.add(SetOpaqueCubeListener.class, this);
 		EVENTS.add(GetAmbientOcclusionLightLevelListener.class, this);
 		EVENTS.add(ShouldDrawSideListener.class, this);
 		EVENTS.add(RenderBlockEntityListener.class, this);
+		EVENTS.add(KeyPressListener.class, this);
 		
 		// reload chunks
 		MC.worldRenderer.reload();
@@ -140,6 +152,18 @@ public final class XRayHack extends Hack implements UpdateListener,
 		EVENTS.remove(GetAmbientOcclusionLightLevelListener.class, this);
 		EVENTS.remove(ShouldDrawSideListener.class, this);
 		EVENTS.remove(RenderBlockEntityListener.class, this);
+		EVENTS.remove(KeyPressListener.class, this);
+		
+		// If we switched due to key press, restore XRay when disabled
+		if(switchedToInvert)
+		{
+			switchedToInvert = false;
+			XRayInvertHack xrayInvert = WURST.getHax().xRayInvertHack;
+			if(xrayInvert.isEnabled())
+			{
+				xrayInvert.setEnabled(false);
+			}
+		}
 		
 		// reload chunks
 		MC.worldRenderer.reload();
@@ -278,9 +302,75 @@ public final class XRayHack extends Hack implements UpdateListener,
 		return null;
 	}
 	
+	@Override
+	public void onKeyPress(KeyPressEvent event)
+	{
+		int keyCode = event.getKeyCode();
+		int action = event.getAction();
+		
+		if(keyCode == KEY_RIGHT_ALT)
+		{
+			XRayInvertHack xrayInvert = WURST.getHax().xRayInvertHack;
+			
+			if(action == GLFW.GLFW_PRESS)
+			{
+				// Save current state and switch to invert hack
+				wasEnabled = isEnabled();
+				if(wasEnabled && !switchedToInvert)
+				{
+					// Temporarily disable this hack
+					setEnabled(false);
+					// Enable the invert hack
+					xrayInvert.setEnabled(true);
+					switchedToInvert = true;
+					showTitleMessage("X-Ray Inverted",
+						"Release Right Alt to return", 20);
+				}
+			}else if(action == GLFW.GLFW_RELEASE)
+			{
+				// Return to previous state
+				if(switchedToInvert)
+				{
+					// Disable the invert hack
+					xrayInvert.setEnabled(false);
+					// Return to original state
+					if(wasEnabled)
+					{
+						setEnabled(true);
+					}
+					switchedToInvert = false;
+					showTitleMessage("X-Ray Normal", "", 20);
+				}
+			}
+		}
+	}
+	
 	public void openBlockListEditor(Screen prevScreen)
 	{
 		MC.setScreen(new EditBlockListScreen(prevScreen, ores));
+	}
+	
+	/**
+	 * Shows a title message on the screen with fade-in/out effects.
+	 *
+	 * @param title
+	 *            The main title text
+	 * @param subtitle
+	 *            The subtitle text
+	 * @param ticks
+	 *            How long to display the message
+	 */
+	private void showTitleMessage(String title, String subtitle, int ticks)
+	{
+		if(MC.player == null || MC.inGameHud == null)
+			return;
+		
+		// Show title with fade-in, stay, and fade-out times
+		MC.inGameHud.setTitle(Text.literal(title));
+		MC.inGameHud.setSubtitle(Text.literal(subtitle));
+		MC.inGameHud.setTitleTicks(10, ticks, 20); // 10 tick fade-in, variable
+													// duration, 20 tick
+													// fade-out
 	}
 	
 	// See AbstractBlockRenderContextMixin, RenderLayersMixin

@@ -200,6 +200,8 @@ public final class HackList implements UpdateListener
 	private final HoleEspHack holeEspHack = new HoleEspHack();
 	private final EventManager eventManager =
 		WurstClient.INSTANCE.getEventManager();
+	private final PrettyChatHack prettyChatHack = new PrettyChatHack();
+	public XRayInvertHack xRayInvertHack = new XRayInvertHack();
 	
 	public HackList(Path enabledHacksFile)
 	{
