@@ -125,6 +125,16 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 		"When enabled, notifications will be shorter and only show basic information.",
 		false);
 	
+	private final CheckboxSetting showLookingAtInfo = new CheckboxSetting(
+		"Show Looking At Info",
+		"Shows the name and distance of the item you are currently looking at in the subtitle area.",
+		true);
+	
+	private final CheckboxSetting highlightItemCount = new CheckboxSetting(
+		"Highlight Item Count",
+		"When enabled, the item count will be shown more prominently in the subtitle.",
+		true);
+	
 	public enum ItemCategory
 	{
 		TOOLS("Tools", "Tools like swords, pickaxes, elytras, etc."),
@@ -200,6 +210,21 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 		new java.util.LinkedList<>();
 	private boolean isProcessingTitleQueue = false;
 	
+	// Anti-spam tracking variables
+	private long lastCleanupReportTime = 0;
+	private int totalItemsRemovedSinceLastReport = 0;
+	private static final int CLEANUP_REPORT_THRESHOLD = 10;
+	private int titleMessagesShownCount = 0;
+	private static final int MAX_TITLE_MESSAGES_PER_SESSION = 15;
+	private final java.util.HashSet<String> recentTitleTypes =
+		new java.util.HashSet<>();
+	private long lastTitleTypesClearTime = 0;
+	
+	// Looking at item tracking
+	private ItemEntity currentLookingAt = null;
+	private long lastSubtitleUpdateTime = 0;
+	private static final int SUBTITLE_UPDATE_INTERVAL_MS = 250;
+	
 	public ItemEspHack()
 	{
 		super("ItemESP");
@@ -227,6 +252,8 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 		addSetting(titleMessageDelay);
 		addSetting(enableNotifications);
 		addSetting(simpleNotifications);
+		addSetting(showLookingAtInfo);
+		addSetting(highlightItemCount);
 		
 		// Create filters for each category
 		itemFilters = new ItemFilterList(
@@ -254,8 +281,13 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 		EVENTS.add(CameraTransformViewBobbingListener.class, this);
 		EVENTS.add(RenderListener.class, this);
 		
-		// Reset last message time
+		// Reset all message tracking
 		lastTitleMessageTime = 0;
+		titleMessagesShownCount = 0;
+		totalItemsRemovedSinceLastReport = 0;
+		lastCleanupReportTime = 0;
+		recentTitleTypes.clear();
+		lastTitleTypesClearTime = 0;
 	}
 	
 	@Override
@@ -265,10 +297,20 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 		EVENTS.remove(CameraTransformViewBobbingListener.class, this);
 		EVENTS.remove(RenderListener.class, this);
 		
-		// Clear item tracking when disabled
+		// Clear all tracking when disabled
 		knownItemIds.clear();
 		itemNotificationMap.clear();
 		uniqueItemIdentifiers.clear();
+		titleMessageQueue.clear();
+		recentTitleTypes.clear();
+		titleMessagesShownCount = 0;
+		
+		// Clear subtitle if we were showing an item
+		if(currentLookingAt != null && MC.inGameHud != null)
+		{
+			MC.inGameHud.setSubtitle(Text.of(""));
+			currentLookingAt = null;
+		}
 	}
 	
 	@Override
@@ -942,6 +984,18 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 		// Skip if notifications are disabled
 		if(!enableNotifications.isChecked())
 			return;
+			
+		// Check if we've reached the max number of notifications for this
+		// session
+		if(titleMessagesShownCount >= MAX_TITLE_MESSAGES_PER_SESSION)
+		{
+			// Only allow notifications for critically important items
+			boolean isCritical = title.contains("ELYTRA")
+				|| title.contains("NETHERITE") || title.contains("SHULKER");
+			
+			if(!isCritical)
+				return;
+		}
 		
 		// Simplify subtitle if simple notifications are enabled
 		if(simpleNotifications.isChecked() && subtitle.contains("x "))
@@ -950,6 +1004,9 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 			subtitle = subtitle.replaceAll("§e\\d+x §f", "")
 				.replaceAll("§e\\d+x ", "");
 		}
+		
+		// Increment the counter for title messages shown
+		titleMessagesShownCount++;
 		
 		// Add the message to the queue
 		titleMessageQueue.add(new TitleMessage(title, subtitle, ticks));
@@ -1003,25 +1060,53 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 		
 		isProcessingTitleQueue = true;
 		
-		// Check if enough time has passed since the last message
+		// Clear the recent title types every 60 seconds to allow repeat
+		// notifications later
 		long currentTime = System.currentTimeMillis();
-		long delay = (long)(titleMessageDelay.getValue() * 1000); // Convert
-		// seconds
-		// to
-		// milliseconds
+		if(currentTime - lastTitleTypesClearTime > 60000)
+		{
+			recentTitleTypes.clear();
+			lastTitleTypesClearTime = currentTime;
+		}
+		
+		// Check if enough time has passed since the last message
+		long delay = (long)(titleMessageDelay.getValue() * 1000);
 		if(currentTime - lastTitleMessageTime < delay)
 		{
 			return; // Will be called again in onUpdate
 		}
 		
-		// Get the next message from the queue
-		TitleMessage message = titleMessageQueue.poll();
+		// Get the next message from the queue without removing it yet
+		TitleMessage message = titleMessageQueue.peek();
 		
 		if(message == null || MC.player == null || MC.inGameHud == null)
 		{
+			titleMessageQueue.clear(); // Clear the queue if we can't process
+			// messages
 			isProcessingTitleQueue = false;
 			return;
 		}
+		
+		// Check if we've recently shown a title with this text
+		String titleType = message.title.replaceAll("§[0-9a-fklmnor]", "");
+		if(recentTitleTypes.contains(titleType))
+		{
+			// Skip this message and remove it from queue
+			titleMessageQueue.poll();
+			
+			// If the queue is now empty, mark as not processing
+			if(titleMessageQueue.isEmpty())
+			{
+				isProcessingTitleQueue = false;
+			}
+			return;
+		}
+		
+		// Remove the message from the queue and show it
+		titleMessageQueue.poll();
+		
+		// Remember this title type to avoid duplicates
+		recentTitleTypes.add(titleType);
 		
 		// Show title with fade-in, stay, and fade-out times
 		MC.inGameHud.setTitle(Text.of(message.title));
@@ -1161,29 +1246,38 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 		// Remove all invalid/out-of-range IDs
 		knownItemIds.removeAll(idsToRemove);
 		
+		// Add to the running total of removed items
+		totalItemsRemovedSinceLastReport += idsToRemove.size();
+		
 		// Periodically clear unique item identifiers to avoid memory bloat
-		// and to allow re-notification of items if they're found again later
-		// Do this every 5 minutes (300000 ms)
+		// Do this every 5 minutes (300000 ms) but don't send a message
 		if(System.currentTimeMillis() % 300000 < 1000)
 		{
-			int oldSize = uniqueItemIdentifiers.size();
 			uniqueItemIdentifiers.clear();
-			
-			if(oldSize > 0 && MC.inGameHud != null)
-			{
-				MC.inGameHud.getChatHud()
-					.addMessage(Text.of("§a[ItemESP]§f Cleared §b" + oldSize
-						+ "§f unique item identifiers from memory"));
-			}
 		}
 		
-		// If we removed items, log it
-		if(!idsToRemove.isEmpty() && MC.inGameHud != null)
+		// Only report cleanup if it's been at least 30 seconds since last
+		// report
+		// AND we've removed a significant number of items
+		long currentTime = System.currentTimeMillis();
+		if(totalItemsRemovedSinceLastReport >= CLEANUP_REPORT_THRESHOLD
+			&& currentTime - lastCleanupReportTime > 30000
+			&& MC.inGameHud != null)
 		{
-			MC.inGameHud.getChatHud()
-				.addMessage(Text.of("§a[ItemESP]§f Removed §b"
-					+ idsToRemove.size()
-					+ "§f items from tracking (out of range or no longer exist)"));
+			// Only show the message if notifications are enabled and not set to
+			// simple
+			if(enableNotifications.isChecked()
+				&& !simpleNotifications.isChecked())
+			{
+				MC.inGameHud.getChatHud()
+					.addMessage(Text.of("§a[ItemESP]§f Removed §b"
+						+ totalItemsRemovedSinceLastReport
+						+ "§f items from tracking"));
+			}
+			
+			// Reset the counter and update the last report time
+			totalItemsRemovedSinceLastReport = 0;
+			lastCleanupReportTime = currentTime;
 		}
 	}
 	
@@ -1308,6 +1402,182 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 			TextRenderer3D.renderTextAboveBox(matrixStack, itemText, box, 0.3,
 				0xFFFFFFFF, true);
 		}
+	}
+	
+	/**
+	 * Finds which item entity the player is currently looking at
+	 *
+	 * @param partialTicks
+	 *            Partial ticks for smooth rendering
+	 * @return The item entity the player is looking at, or null if none
+	 */
+	private ItemEntity findItemLookingAt(float partialTicks)
+	{
+		if(MC.player == null || MC.world == null)
+			return null;
+		
+		// Get player's eye position and look vector
+		Vec3d eyePos = MC.player.getEyePos();
+		Vec3d lookVec = MC.player.getRotationVec(partialTicks).normalize();
+		
+		// Define max distance to search
+		double maxDist = 30.0;
+		
+		// Prepare variables for closest hit
+		ItemEntity closestItem = null;
+		double closestDist = Double.MAX_VALUE;
+		
+		// Check all visible items
+		ArrayList<ItemEntity> allItems = new ArrayList<>();
+		allItems.addAll(items);
+		allItems.addAll(arrows);
+		allItems.addAll(elytraItems);
+		allItems.addAll(diamondItems);
+		allItems.addAll(netheriteItems);
+		
+		for(ItemEntity item : allItems)
+		{
+			// Get the item's position
+			Vec3d itemPos = item.getPos().add(0, item.getHeight() / 2, 0);
+			
+			// Vector from eye to item center
+			Vec3d eyeToItem = itemPos.subtract(eyePos);
+			double distToItem = eyeToItem.length();
+			
+			// Skip if too far
+			if(distToItem > maxDist)
+				continue;
+			
+			// Project the eye-to-item vector onto the look vector
+			double projection = eyeToItem.dotProduct(lookVec);
+			
+			// Skip if item is behind the player
+			if(projection <= 0)
+				continue;
+			
+			// Calculate the closest point on the ray to the item
+			Vec3d projectedPoint = eyePos.add(lookVec.multiply(projection));
+			
+			// Calculate distance from this point to the item center
+			double distFromRay = projectedPoint.distanceTo(itemPos);
+			
+			// Size factor based on distance (makes items easier to target from
+			// further away)
+			double sizeFactor = 0.8 + (distToItem / maxDist) * 1.0;
+			
+			// Check if we're looking close enough to the item
+			// The hitbox increases slightly with distance to make distant items
+			// easier to target
+			double hitboxSize =
+				Math.max(item.getWidth(), item.getHeight()) * sizeFactor;
+			
+			if(distFromRay < hitboxSize && projection < closestDist)
+			{
+				closestDist = projection;
+				closestItem = item;
+			}
+		}
+		
+		return closestItem;
+	}
+	
+	/**
+	 * Updates the subtitle with info about the item player is looking at
+	 */
+	private void updateLookingAtSubtitle(float partialTicks)
+	{
+		if(!showLookingAtInfo.isChecked() || MC.player == null
+			|| MC.inGameHud == null)
+			return;
+			
+		// Don't show looking at info if we're currently displaying a title
+		// message
+		if(isProcessingTitleQueue || !titleMessageQueue.isEmpty()
+			|| (System.currentTimeMillis() - lastTitleMessageTime < 2000))
+			return;
+		
+		// Only update every SUBTITLE_UPDATE_INTERVAL_MS to prevent flickering
+		long currentTime = System.currentTimeMillis();
+		if(currentTime - lastSubtitleUpdateTime < SUBTITLE_UPDATE_INTERVAL_MS)
+			return;
+		
+		lastSubtitleUpdateTime = currentTime;
+		
+		// Find what item we're looking at
+		ItemEntity lookingAt = findItemLookingAt(partialTicks);
+		
+		// If we're not looking at anything, clear the subtitle if we previously
+		// were
+		if(lookingAt == null)
+		{
+			if(currentLookingAt != null)
+			{
+				MC.inGameHud.setSubtitle(Text.of(""));
+				currentLookingAt = null;
+			}
+			return;
+		}
+		
+		// Calculate distance
+		double distance = MC.player.squaredDistanceTo(lookingAt);
+		distance = Math.sqrt(distance);
+		
+		// Format item name and distance
+		ItemStack stack = lookingAt.getStack();
+		String itemName = stack.getName().getString();
+		int count = stack.getCount();
+		
+		// Build the subtitle text with appropriate colors
+		String subtitle;
+		String countStr;
+		
+		// Format the count string based on setting
+		if(count > 1)
+		{
+			if(highlightItemCount.isChecked())
+			{
+				countStr = " §l[x" + count + "]§r";
+			}else
+			{
+				countStr = " §fx" + count;
+			}
+		}else
+		{
+			countStr = "";
+		}
+		
+		// Use different colors based on item rarity/value
+		if(isElytraItem(stack))
+		{
+			subtitle = "§d§lLooking at: §d" + itemName + countStr + " §7(§f"
+				+ String.format("%.1f", distance) + "m§7)";
+		}else if(isNetheriteItem(stack))
+		{
+			subtitle = "§4§lLooking at: §4" + itemName + countStr + " §7(§f"
+				+ String.format("%.1f", distance) + "m§7)";
+		}else if(isShulkerBox(stack))
+		{
+			subtitle = "§5§lLooking at: §5" + itemName + countStr + " §7(§f"
+				+ String.format("%.1f", distance) + "m§7)";
+		}else if(stack.getItem().toString().toLowerCase().contains("diamond"))
+		{
+			subtitle = "§b§lLooking at: §b" + itemName + countStr + " §7(§f"
+				+ String.format("%.1f", distance) + "m§7)";
+		}else if(isValuableItem(stack))
+		{
+			subtitle = "§a§lLooking at: §a" + itemName + countStr + " §7(§f"
+				+ String.format("%.1f", distance) + "m§7)";
+		}else
+		{
+			subtitle = "§e§lLooking at: §e" + itemName + countStr + " §7(§f"
+				+ String.format("%.1f", distance) + "m§7)";
+		}
+		
+		// Set the subtitle
+		MC.inGameHud.setSubtitle(Text.of(subtitle));
+		
+		// Store current looking at
+		currentLookingAt = lookingAt;
 	}
 	
 	@Override
@@ -1607,5 +1877,8 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 		
 		// Render text labels for valuable items
 		renderValuableItemText(matrixStack, partialTicks);
+		
+		// Update the subtitle with the item player is looking at
+		updateLookingAtSubtitle(partialTicks);
 	}
 }
