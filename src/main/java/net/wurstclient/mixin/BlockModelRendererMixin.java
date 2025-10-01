@@ -7,14 +7,8 @@
  */
 package net.wurstclient.mixin;
 
-import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Constant;
-import org.spongepowered.asm.mixin.injection.ModifyConstant;
-
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
-
 import net.minecraft.block.BlockState;
 import net.minecraft.client.render.VertexConsumer;
 import net.minecraft.client.render.block.BlockModelRenderer;
@@ -29,6 +23,11 @@ import net.wurstclient.WurstClient;
 import net.wurstclient.event.EventManager;
 import net.wurstclient.events.ShouldDrawSideListener.ShouldDrawSideEvent;
 import net.wurstclient.hacks.XRayHack;
+import net.wurstclient.hacks.XRayInvertHack;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Constant;
+import org.spongepowered.asm.mixin.injection.ModifyConstant;
 
 @Mixin(BlockModelRenderer.class)
 public abstract class BlockModelRendererMixin implements ItemConvertible
@@ -56,10 +55,26 @@ public abstract class BlockModelRendererMixin implements ItemConvertible
 		EventManager.fire(event);
 		
 		XRayHack xray = WurstClient.INSTANCE.getHax().xRayHack;
-		if(!xray.isOpacityMode() || xray.isVisible(state.getBlock(), pos))
-			currentOpacity.set(1F);
-		else
-			currentOpacity.set(xray.getOpacityFloat());
+		XRayInvertHack xrayInvert =
+			WurstClient.INSTANCE.getHax().xRayInvertHack;
+		
+		// Handle XRayHack opacity
+		if(xray.isEnabled())
+		{
+			if(!xray.isOpacityMode() || xray.isVisible(state.getBlock(), pos))
+				currentOpacity.set(1F);
+			else
+				currentOpacity.set(xray.getOpacityFloat());
+		}
+		// Handle XRayInvertHack opacity
+		else if(xrayInvert.isEnabled())
+		{
+			if(!xrayInvert.isOpacityMode()
+				|| !xray.isVisible(state.getBlock(), pos))
+				currentOpacity.set(1F);
+			else
+				currentOpacity.set(xrayInvert.getOpacityFloat());
+		}
 		
 		if(event.isRendered() != null)
 			return event.isRendered();

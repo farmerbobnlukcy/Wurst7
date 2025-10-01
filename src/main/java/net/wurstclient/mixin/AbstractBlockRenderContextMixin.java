@@ -7,18 +7,18 @@
  */
 package net.wurstclient.mixin;
 
+import net.fabricmc.fabric.impl.client.indigo.renderer.mesh.MutableQuadViewImpl;
+import net.fabricmc.fabric.impl.client.indigo.renderer.render.AbstractBlockRenderContext;
+import net.fabricmc.fabric.impl.client.indigo.renderer.render.BlockRenderInfo;
+import net.wurstclient.WurstClient;
+import net.wurstclient.hacks.XRayHack;
+import net.wurstclient.hacks.XRayInvertHack;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-
-import net.fabricmc.fabric.impl.client.indigo.renderer.mesh.MutableQuadViewImpl;
-import net.fabricmc.fabric.impl.client.indigo.renderer.render.AbstractBlockRenderContext;
-import net.fabricmc.fabric.impl.client.indigo.renderer.render.BlockRenderInfo;
-import net.wurstclient.WurstClient;
-import net.wurstclient.hacks.XRayHack;
 
 @Mixin(value = AbstractBlockRenderContext.class, remap = false)
 public abstract class AbstractBlockRenderContextMixin
@@ -37,11 +37,24 @@ public abstract class AbstractBlockRenderContextMixin
 		boolean emissive, boolean vanillaShade, CallbackInfo ci)
 	{
 		XRayHack xray = WurstClient.INSTANCE.getHax().xRayHack;
-		if(!xray.isOpacityMode() || xray
-			.isVisible(blockInfo.blockState.getBlock(), blockInfo.blockPos))
-			return;
+		XRayInvertHack xrayInvert =
+			WurstClient.INSTANCE.getHax().xRayInvertHack;
 		
-		for(int i = 0; i < 4; i++)
-			quad.color(i, quad.color(i) & xray.getOpacityColorMask());
+		// Handle XRayHack opacity
+		if(xray.isEnabled() && xray.isOpacityMode() && !xray
+			.isVisible(blockInfo.blockState.getBlock(), blockInfo.blockPos))
+		{
+			for(int i = 0; i < 4; i++)
+				quad.color(i, quad.color(i) & xray.getOpacityColorMask());
+			return;
+		}
+		
+		// Handle XRayInvertHack opacity
+		if(xrayInvert.isEnabled() && xrayInvert.isOpacityMode() && xray
+			.isVisible(blockInfo.blockState.getBlock(), blockInfo.blockPos))
+		{
+			for(int i = 0; i < 4; i++)
+				quad.color(i, quad.color(i) & xrayInvert.getOpacityColorMask());
+		}
 	}
 }
