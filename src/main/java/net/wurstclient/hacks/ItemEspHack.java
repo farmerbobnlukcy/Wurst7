@@ -110,6 +110,21 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 			256, 8,
 			net.wurstclient.settings.SliderSetting.ValueDisplay.INTEGER);
 	
+	private final net.wurstclient.settings.SliderSetting titleMessageDelay =
+		new net.wurstclient.settings.SliderSetting("Title Message Delay",
+			"Delay in seconds between title messages to prevent spam", 3, 1, 10,
+			0.5, net.wurstclient.settings.SliderSetting.ValueDisplay.DECIMAL);
+	
+	private final CheckboxSetting enableNotifications = new CheckboxSetting(
+		"Enable Notifications",
+		"When enabled, shows notifications for found items. When disabled, no messages will appear.",
+		true);
+	
+	private final CheckboxSetting simpleNotifications = new CheckboxSetting(
+		"Simple Notifications",
+		"When enabled, notifications will be shorter and only show basic information.",
+		false);
+	
 	public enum ItemCategory
 	{
 		TOOLS("Tools", "Tools like swords, pickaxes, elytras, etc."),
@@ -165,6 +180,10 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 	private long lastNetheriteItemSoundTime = 0;
 	private long lastShulkerBoxSoundTime = 0;
 	
+	// Track unique item identifiers to prevent duplicate notifications
+	private final java.util.HashSet<String> uniqueItemIdentifiers =
+		new java.util.HashSet<>();
+	
 	// Map to track unique items by name for notification purposes
 	private final java.util.HashMap<String, Integer> itemNotificationMap =
 		new java.util.HashMap<>();
@@ -172,6 +191,14 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 	
 	// Boss bar-related fields
 	private long lastBossBarUpdateTime = 0;
+	
+	// Title message system
+	private long lastTitleMessageTime = 0;
+	
+	// Title message queue system
+	private final java.util.Queue<TitleMessage> titleMessageQueue =
+		new java.util.LinkedList<>();
+	private boolean isProcessingTitleQueue = false;
 	
 	public ItemEspHack()
 	{
@@ -197,6 +224,9 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 		addSetting(showSpecialItemText);
 		addSetting(showValuableItemText);
 		addSetting(trackingRange);
+		addSetting(titleMessageDelay);
+		addSetting(enableNotifications);
+		addSetting(simpleNotifications);
 		
 		// Create filters for each category
 		itemFilters = new ItemFilterList(
@@ -223,6 +253,9 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 		EVENTS.add(UpdateListener.class, this);
 		EVENTS.add(CameraTransformViewBobbingListener.class, this);
 		EVENTS.add(RenderListener.class, this);
+		
+		// Reset last message time
+		lastTitleMessageTime = 0;
 	}
 	
 	@Override
@@ -235,6 +268,7 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 		// Clear item tracking when disabled
 		knownItemIds.clear();
 		itemNotificationMap.clear();
+		uniqueItemIdentifiers.clear();
 	}
 	
 	@Override
@@ -255,6 +289,14 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 		
 		// Create a list to track new items found this update
 		ArrayList<ItemEntity> newItems = new ArrayList<>();
+		
+		// Create maps to group items by priority
+		java.util.Map<ItemPriority, java.util.List<ItemEntity>> priorityGroups =
+			new java.util.HashMap<>();
+		for(ItemPriority priority : ItemPriority.values())
+		{
+			priorityGroups.put(priority, new ArrayList<>());
+		}
 		
 		// Track if any elytra items are found this update
 		boolean foundElytra = false;
@@ -296,12 +338,19 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 				
 				if(passesFilter)
 				{
-					// Check if this is a new item we haven't seen before
+					// Check if this is a new item we haven't seen before by
+					// entity ID
 					int itemId = item.getId();
 					if(!knownItemIds.contains(itemId))
 					{
 						knownItemIds.add(itemId);
-						newItems.add(item);
+						
+						// Check if it's a unique item we haven't seen before by
+						// location/name/count
+						if(isNewUniqueItem(item))
+						{
+							newItems.add(item);
+						}
 					}
 					
 					// Sort items into special categories if enabled
@@ -346,6 +395,10 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 			{
 				ItemStack stack = item.getStack();
 				
+				// Only show chat notifications for specific items
+				if(!shouldShowChatNotification(stack))
+					continue;
+					
 				// Get the base item type name (e.g., "Diamond Pickaxe",
 				// "Shulker Box")
 				String itemTypeName = stack.getItem().getName().getString();
@@ -377,6 +430,15 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 			}
 		}
 		
+		// Group similar items for notifications
+		java.util.Map<String, Integer> elytraItems = new java.util.HashMap<>();
+		java.util.Map<String, Integer> netheriteItems =
+			new java.util.HashMap<>();
+		java.util.Map<String, Integer> shulkerBoxItems =
+			new java.util.HashMap<>();
+		java.util.Map<String, Integer> otherValuableItems =
+			new java.util.HashMap<>();
+		
 		// Process notifications for special items
 		for(ItemEntity item : newItems)
 		{
@@ -388,26 +450,72 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 			
 			// Get item names
 			String itemTypeName = stack.getItem().getName().getString();
-			String displayName = stack.getName().getString();
-			boolean hasCustomName = stack.getCustomName() != null;
 			int count = stack.getCount();
 			
-			// Play appropriate sound for special items
+			// Group items by type
 			if(isElytraItem(stack))
 			{
 				playSpecialItemSound(stack);
-				this.showTitleMessage("§d§lELYTRA FOUND!",
-					"§e" + count + "x " + itemTypeName, 60);
+				elytraItems.put(itemTypeName,
+					elytraItems.getOrDefault(itemTypeName, 0) + count);
 			}else if(isNetheriteItem(stack))
 			{
 				playSpecialItemSound(stack);
-				this.showTitleMessage("§4§lNETHERITE FOUND!",
-					"§e" + count + "x " + itemTypeName, 60);
+				netheriteItems.put(itemTypeName,
+					netheriteItems.getOrDefault(itemTypeName, 0) + count);
 			}else if(isShulkerBox(stack))
 			{
 				playSpecialItemSound(stack);
-				this.showTitleMessage("§d§lSHULKER BOX FOUND!",
-					"§e" + count + "x " + itemTypeName, 60);
+				shulkerBoxItems.put(itemTypeName,
+					shulkerBoxItems.getOrDefault(itemTypeName, 0) + count);
+			}else if(isValuableItem(stack))
+			{
+				// Only track other valuable items if they're worth notifying
+				// about
+				otherValuableItems.put(itemTypeName,
+					otherValuableItems.getOrDefault(itemTypeName, 0) + count);
+			}
+		}
+		
+		// Queue title messages for each group
+		// First priority: Elytra
+		for(java.util.Map.Entry<String, Integer> entry : elytraItems.entrySet())
+		{
+			this.showTitleMessage("§d§lELYTRA FOUND!",
+				"§e" + entry.getValue() + "x " + entry.getKey(), 60);
+		}
+		
+		// Second priority: Netherite items
+		for(java.util.Map.Entry<String, Integer> entry : netheriteItems
+			.entrySet())
+		{
+			this.showTitleMessage("§4§lNETHERITE FOUND!",
+				"§e" + entry.getValue() + "x " + entry.getKey(), 60);
+		}
+		
+		// Third priority: Shulker Boxes
+		for(java.util.Map.Entry<String, Integer> entry : shulkerBoxItems
+			.entrySet())
+		{
+			this.showTitleMessage("§d§lSHULKER BOX FOUND!",
+				"§e" + entry.getValue() + "x " + entry.getKey(), 60);
+		}
+		
+		// If there are multiple other valuable items, create a summary message
+		if(otherValuableItems.size() > 3)
+		{
+			int totalItems = otherValuableItems.values().stream()
+				.mapToInt(Integer::intValue).sum();
+			showItemSummaryMessage(java.util.Collections
+				.singletonMap("valuable items", totalItems));
+		}else
+		{
+			// Queue individual messages for a small number of valuable items
+			for(java.util.Map.Entry<String, Integer> entry : otherValuableItems
+				.entrySet())
+			{
+				this.showTitleMessage("§e§lITEM FOUND!",
+					"§e" + entry.getValue() + "x " + entry.getKey(), 40);
 			}
 		}
 		
@@ -427,6 +535,143 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 		{
 			updateBossBar(closestItem);
 		}
+		
+		// Process the next title message if the queue isn't empty and enough
+		// time has passed
+		if(!titleMessageQueue.isEmpty())
+		{
+			processNextTitleMessage();
+		}
+	}
+	
+	/**
+	 * Process high priority items for title notifications
+	 */
+	private void processHighPriorityItems(java.util.List<ItemEntity> items,
+		ItemPriority priority)
+	{
+		if(items.isEmpty())
+			return;
+		
+		// Group items by type to consolidate notifications
+		java.util.Map<String, Integer> itemCounts = new java.util.HashMap<>();
+		
+		for(ItemEntity item : items)
+		{
+			ItemStack stack = item.getStack();
+			String itemName = stack.getItem().getName().getString();
+			int count = stack.getCount();
+			
+			itemCounts.put(itemName,
+				itemCounts.getOrDefault(itemName, 0) + count);
+		}
+		
+		// Select title and color based on priority
+		String titleText;
+		String titleColor;
+		int displayTicks;
+		
+		switch(priority)
+		{
+			case SHULKER:
+			titleText = "SHULKER BOX FOUND!";
+			titleColor = "§d§l"; // Light purple
+			displayTicks = 60;
+			break;
+			
+			case NETHERITE:
+			titleText = "NETHERITE FOUND!";
+			titleColor = "§4§l"; // Dark red
+			displayTicks = 60;
+			break;
+			
+			case DIAMOND_GEAR:
+			titleText = "DIAMOND GEAR FOUND!";
+			titleColor = "§b§l"; // Aqua
+			displayTicks = 50;
+			break;
+			
+			case DIAMOND_EMERALD:
+			titleText = "VALUABLES FOUND!";
+			titleColor = "§a§l"; // Green
+			displayTicks = 40;
+			break;
+			
+			case GUNPOWDER:
+			titleText = "GUNPOWDER FOUND!";
+			titleColor = "§7§l"; // Gray
+			displayTicks = 30;
+			break;
+			
+			default:
+			titleText = "ITEM FOUND!";
+			titleColor = "§e§l"; // Yellow
+			displayTicks = 30;
+			break;
+		}
+		
+		// If multiple types, show a summary
+		if(itemCounts.size() > 1)
+		{
+			int totalItems =
+				itemCounts.values().stream().mapToInt(Integer::intValue).sum();
+			showTitleMessage(titleColor + titleText,
+				"§e" + totalItems + "x items", displayTicks);
+		}
+		// Otherwise show the specific item
+		else if(itemCounts.size() == 1)
+		{
+			java.util.Map.Entry<String, Integer> entry =
+				itemCounts.entrySet().iterator().next();
+			showTitleMessage(titleColor + titleText,
+				"§e" + entry.getValue() + "x " + entry.getKey(), displayTicks);
+		}
+		
+		// Send chat messages for all items in this priority
+		for(ItemEntity item : items)
+		{
+			sendChatMessage(item);
+		}
+	}
+	
+	/**
+	 * Send a chat message for an item
+	 */
+	private void sendChatMessage(ItemEntity itemEntity)
+	{
+		ItemStack stack = itemEntity.getStack();
+		if(stack == null)
+			return;
+		
+		// Skip non-priority items
+		if(getItemPriority(stack) == ItemPriority.NONE)
+			return;
+		
+		// Get the base item type name
+		String itemTypeName = stack.getItem().getName().getString();
+		
+		// Get the actual display name which might include custom names
+		String displayName = stack.getName().getString();
+		
+		// Check if the item has a custom name
+		boolean hasCustomName = stack.getCustomName() != null;
+		
+		int count = stack.getCount();
+		
+		// Format message based on whether item has a custom name
+		String message;
+		if(hasCustomName && !itemTypeName.equals(displayName))
+		{
+			// Format: Found 1x Diamond Pickaxe named "Destroyer of Worlds"
+			message = "§a[ItemESP]§f Found: §b" + count + "x §e" + itemTypeName
+				+ "§f named \"§d" + displayName + "§f\"";
+		}else
+		{
+			// Standard format: Found 1x Diamond Pickaxe
+			message = "§a[ItemESP]§f Found: §b" + count + "x §e" + itemTypeName;
+		}
+		
+		MC.inGameHud.getChatHud().addMessage(Text.of(message));
 	}
 	
 	private boolean isRottenFlesh(ItemStack stack)
@@ -516,27 +761,281 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 			&& !isBlockItem(stack);
 	}
 	
-	private boolean isSpecialLabeledItem(ItemStack stack)
+	// Define priority levels for item notifications
+	private enum ItemPriority
 	{
-		String itemName = stack.getItem().toString().toLowerCase();
-		for(String specialItem : SPECIAL_ITEMS)
-			if(itemName.contains(specialItem))
-				return true;
-		return false;
+		NONE, // Non-priority items (no notifications)
+		LOW, // Basic items (chat only)
+		GUNPOWDER, // Gunpowder (chat, title if nothing better)
+		DIAMOND_EMERALD, // Diamonds/Emeralds (chat, title if nothing better)
+		DIAMOND_GEAR, // Diamond armor/tools (chat, title if nothing better)
+		NETHERITE, // Netherite items (title message)
+		SHULKER // Shulker boxes (highest priority - title message)
 	}
 	
 	/**
-	 * Shows a title message to the player
+	 * Determines the notification priority of an item
+	 */
+	private ItemPriority getItemPriority(ItemStack stack)
+	{
+		String itemName = stack.getItem().toString().toLowerCase();
+		
+		// Check for highest priority items first
+		if(itemName.contains("shulker_box"))
+			return ItemPriority.SHULKER;
+		
+		if(itemName.contains("netherite"))
+			return ItemPriority.NETHERITE;
+		
+		// Check for diamond armor and tools
+		if((itemName.contains("diamond") && (itemName.contains("helmet")
+			|| itemName.contains("chestplate") || itemName.contains("leggings")
+			|| itemName.contains("boots") || itemName.contains("sword")
+			|| itemName.contains("pickaxe") || itemName.contains("axe")
+			|| itemName.contains("shovel") || itemName.contains("hoe"))))
+			return ItemPriority.DIAMOND_GEAR;
+		
+		// Check for diamonds and emeralds
+		if(itemName.contains("diamond") || itemName.contains("emerald"))
+			return ItemPriority.DIAMOND_EMERALD;
+		
+		// Check for gunpowder
+		if(itemName.contains("gunpowder"))
+			return ItemPriority.GUNPOWDER;
+		
+		// Check if this is any priority item at all
+		if(itemName.contains("enderchest") || itemName.contains("blaze_rod"))
+			return ItemPriority.LOW;
+		
+		return ItemPriority.NONE;
+	}
+	
+	/**
+	 * Checks if an item should show any notification (title or chat)
+	 */
+	private boolean shouldShowNotification(ItemStack stack)
+	{
+		return getItemPriority(stack) != ItemPriority.NONE;
+	}
+	
+	/**
+	 * Checks if an item should show a title message (based on its priority)
+	 */
+	private boolean shouldShowTitleMessage(ItemStack stack)
+	{
+		ItemPriority priority = getItemPriority(stack);
+		return priority != ItemPriority.NONE && priority != ItemPriority.LOW;
+	}
+	
+	/**
+	 * Checks if an item is critically important and should always trigger
+	 * alerts
+	 * regardless of notification settings
+	 */
+	private boolean isCriticalImportantItem(ItemStack stack)
+	{
+		if(stack == null)
+			return false;
+		
+		String itemName = stack.getItem().toString().toLowerCase();
+		return itemName.contains("netherite")
+			|| itemName.contains("shulker_box");
+	}
+	
+	/**
+	 * Checks if an item entity contains critically important items
+	 */
+	private boolean containsCriticalItems(ItemEntity item)
+	{
+		if(item == null)
+			return false;
+		return isCriticalImportantItem(item.getStack());
+	}
+	
+	/**
+	 * Generates a unique identifier for an item based on location, name, and
+	 * count
+	 *
+	 * @param item
+	 *            The ItemEntity to generate an identifier for
+	 * @return A unique string identifier
+	 */
+	private String generateUniqueItemIdentifier(ItemEntity item)
+	{
+		if(item == null || item.getStack() == null)
+			return "";
+		
+		// Get position rounded to the nearest block
+		int x = (int)Math.round(item.getX());
+		int y = (int)Math.round(item.getY());
+		int z = (int)Math.round(item.getZ());
+		
+		// Get item details
+		String itemName = item.getStack().getItem().toString();
+		int count = item.getStack().getCount();
+		
+		// Combine into unique ID
+		return x + "," + y + "," + z + ":" + itemName + ":" + count;
+	}
+	
+	/**
+	 * Checks if an item has been seen before (using its unique identifier)
+	 *
+	 * @param item
+	 *            The ItemEntity to check
+	 * @return true if this is a new item, false if we've seen it before
+	 */
+	private boolean isNewUniqueItem(ItemEntity item)
+	{
+		String uniqueId = generateUniqueItemIdentifier(item);
+		if(uniqueId.isEmpty())
+			return false;
+		
+		// If we haven't seen this item before, add it and return true
+		if(!uniqueItemIdentifiers.contains(uniqueId))
+		{
+			uniqueItemIdentifiers.add(uniqueId);
+			return true;
+		}
+		
+		return false;
+	}
+	
+	private boolean shouldShowChatNotification(ItemStack stack)
+	{
+		String itemName = stack.getItem().toString().toLowerCase();
+		return itemName.contains("diamond") || itemName.contains("emerald")
+			|| itemName.contains("netherrite")
+			|| itemName.contains("enderchest")
+			|| itemName.contains("blaze_rod");
+	}
+	
+	private boolean isSpecialLabeledItem(ItemStack stack)
+	{
+		String itemName = stack.getItem().toString().toLowerCase();
+		return itemName.contains("netherrite") || itemName.contains("shulker");
+	}
+	
+	/**
+	 * Class to store title message information in the queue
+	 */
+	private static class TitleMessage
+	{
+		final String title;
+		final String subtitle;
+		final int ticks;
+		
+		TitleMessage(String title, String subtitle, int ticks)
+		{
+			this.title = title;
+			this.subtitle = subtitle;
+			this.ticks = ticks;
+		}
+	}
+	
+	/**
+	 * Shows a title message to the player or queues it if other messages are
+	 * being shown
 	 */
 	private void showTitleMessage(String title, String subtitle, int ticks)
 	{
-		if(MC.player == null || MC.inGameHud == null)
+		// Skip if notifications are disabled
+		if(!enableNotifications.isChecked())
 			return;
 		
+		// Simplify subtitle if simple notifications are enabled
+		if(simpleNotifications.isChecked() && subtitle.contains("x "))
+		{
+			// Extract just the item name without quantity info
+			subtitle = subtitle.replaceAll("§e\\d+x §f", "")
+				.replaceAll("§e\\d+x ", "");
+		}
+		
+		// Add the message to the queue
+		titleMessageQueue.add(new TitleMessage(title, subtitle, ticks));
+		
+		// If we're not already processing the queue, start processing it
+		if(!isProcessingTitleQueue)
+		{
+			processNextTitleMessage();
+		}
+	}
+	
+	/**
+	 * Creates a summary message for multiple items of the same type
+	 */
+	private void showItemSummaryMessage(java.util.Map<String, Integer> items)
+	{
+		// If no items, do nothing
+		if(items.isEmpty())
+			return;
+		
+		String title = "§e§lITEMS FOUND!";
+		
+		// Get the first item type and count
+		java.util.Map.Entry<String, Integer> entry =
+			items.entrySet().iterator().next();
+		String itemType = entry.getKey();
+		int count = entry.getValue();
+		
+		String subtitle = "§b" + count + "x §f" + itemType;
+		
+		// Add the summary message to the queue
+		titleMessageQueue.add(new TitleMessage(title, subtitle, 40));
+		
+		// If we're not already processing the queue, start processing it
+		if(!isProcessingTitleQueue)
+		{
+			processNextTitleMessage();
+		}
+	}
+	
+	/**
+	 * Processes the next message in the title message queue
+	 */
+	private void processNextTitleMessage()
+	{
+		if(titleMessageQueue.isEmpty())
+		{
+			isProcessingTitleQueue = false;
+			return;
+		}
+		
+		isProcessingTitleQueue = true;
+		
+		// Check if enough time has passed since the last message
+		long currentTime = System.currentTimeMillis();
+		long delay = (long)(titleMessageDelay.getValue() * 1000); // Convert
+		// seconds
+		// to
+		// milliseconds
+		if(currentTime - lastTitleMessageTime < delay)
+		{
+			return; // Will be called again in onUpdate
+		}
+		
+		// Get the next message from the queue
+		TitleMessage message = titleMessageQueue.poll();
+		
+		if(message == null || MC.player == null || MC.inGameHud == null)
+		{
+			isProcessingTitleQueue = false;
+			return;
+		}
+		
 		// Show title with fade-in, stay, and fade-out times
-		MC.inGameHud.setTitle(Text.of(title));
-		MC.inGameHud.setSubtitle(Text.of(subtitle));
-		MC.inGameHud.setTitleTicks(10, ticks, 20);
+		MC.inGameHud.setTitle(Text.of(message.title));
+		MC.inGameHud.setSubtitle(Text.of(message.subtitle));
+		MC.inGameHud.setTitleTicks(10, message.ticks, 20);
+		
+		// Update the last message time
+		lastTitleMessageTime = currentTime;
+		
+		// If the queue is now empty, mark as not processing
+		if(titleMessageQueue.isEmpty())
+		{
+			isProcessingTitleQueue = false;
+		}
 	}
 	
 	// This method has been replaced by updateBossBar and is removed
@@ -661,6 +1160,22 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 		
 		// Remove all invalid/out-of-range IDs
 		knownItemIds.removeAll(idsToRemove);
+		
+		// Periodically clear unique item identifiers to avoid memory bloat
+		// and to allow re-notification of items if they're found again later
+		// Do this every 5 minutes (300000 ms)
+		if(System.currentTimeMillis() % 300000 < 1000)
+		{
+			int oldSize = uniqueItemIdentifiers.size();
+			uniqueItemIdentifiers.clear();
+			
+			if(oldSize > 0 && MC.inGameHud != null)
+			{
+				MC.inGameHud.getChatHud()
+					.addMessage(Text.of("§a[ItemESP]§f Cleared §b" + oldSize
+						+ "§f unique item identifiers from memory"));
+			}
+		}
 		
 		// If we removed items, log it
 		if(!idsToRemove.isEmpty() && MC.inGameHud != null)
