@@ -5,15 +5,15 @@
  * License, version 3. If a copy of the GPL was not distributed with this
  * file, You can obtain one at: https://www.gnu.org/licenses/gpl-3.0.txt
  */
-package net.wurstclient.settings.filterlists;
+package net.wurstclient.settings.filters;
+
+import java.util.function.Predicate;
 
 import net.minecraft.entity.ItemEntity;
 import net.minecraft.item.ItemStack;
 import net.wurstclient.hacks.ItemEspHack.ItemCategory;
 import net.wurstclient.settings.CheckboxSetting;
 import net.wurstclient.settings.filterlists.ItemFilterList.ItemFilter;
-
-import java.util.function.Predicate;
 
 public final class FilterItemCategorySetting implements ItemFilter
 {

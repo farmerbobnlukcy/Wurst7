@@ -179,59 +179,61 @@ public enum RenderUtils
 		
 		vcp.draw(layer);
 	}
-
-	public static void drawDashedTracers(MatrixStack matrices, float partialTicks,
-		List<Vec3d> ends, int color, boolean depthTest, float dashLength)
+	
+	public static void drawDashedTracers(MatrixStack matrices,
+		float partialTicks, List<Vec3d> ends, int color, boolean depthTest,
+		float dashLength)
 	{
 		int depthFunc = depthTest ? GlConst.GL_LEQUAL : GlConst.GL_ALWAYS;
 		RenderSystem.enableDepthTest();
 		RenderSystem.depthFunc(depthFunc);
-
+		
 		VertexConsumerProvider.Immediate vcp = getVCP();
 		RenderLayer layer = WurstRenderLayers.getLines(depthTest);
 		VertexConsumer buffer = vcp.getBuffer(layer);
-
+		
 		Vec3d start = getTracerOrigin(partialTicks);
 		Vec3d offset = getCameraPos().negate();
-
+		
 		for(Vec3d end : ends)
 		{
 			Vec3d endPos = end.add(offset);
 			drawDashedLine(matrices, buffer, start, endPos, color, dashLength);
 		}
-
+		
 		vcp.draw(layer);
 	}
-
-	private static void drawDashedLine(MatrixStack matrices, VertexConsumer buffer,
-		Vec3d start, Vec3d end, int color, float dashLength)
+	
+	private static void drawDashedLine(MatrixStack matrices,
+		VertexConsumer buffer, Vec3d start, Vec3d end, int color,
+		float dashLength)
 	{
 		Vec3d direction = end.subtract(start).normalize();
 		double totalDistance = start.distanceTo(end);
-
+		
 		// Calculate how many dash segments we need
 		int segments = (int)Math.ceil(totalDistance / dashLength);
 		boolean drawSegment = true;
-
+		
 		Vec3d currentPos = start;
-
+		
 		// Draw alternating dash segments
 		for(int i = 0; i < segments; i++)
 		{
-			double remainingDistance = start.add(direction.multiply(i * dashLength))
-				.distanceTo(end);
-
+			double remainingDistance =
+				start.add(direction.multiply(i * dashLength)).distanceTo(end);
+			
 			// For the last segment, make sure we don't go past the end
 			double segmentLength = Math.min(dashLength, remainingDistance);
 			if(segmentLength <= 0)
 				break;
-
+			
 			Vec3d nextPos = currentPos.add(direction.multiply(segmentLength));
-
+			
 			// Only draw every other segment (creating a dash effect)
 			if(drawSegment)
 				drawLine(matrices, buffer, currentPos, nextPos, color);
-
+			
 			currentPos = nextPos;
 			drawSegment = !drawSegment;
 		}
