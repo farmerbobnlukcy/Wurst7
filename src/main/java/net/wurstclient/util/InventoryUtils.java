@@ -7,9 +7,6 @@
  */
 package net.wurstclient.util;
 
-import java.util.function.Predicate;
-import java.util.stream.IntStream;
-
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.Item;
@@ -18,6 +15,9 @@ import net.minecraft.network.packet.c2s.play.CreativeInventoryActionC2SPacket;
 import net.wurstclient.WurstClient;
 import net.wurstclient.mixinterface.IClientPlayerInteractionManager;
 import net.wurstclient.mixinterface.IMinecraftClient;
+
+import java.util.function.Predicate;
+import java.util.stream.IntStream;
 
 public enum InventoryUtils
 {
@@ -63,8 +63,7 @@ public enum InventoryUtils
 	 *            hotbar or 36 for the whole inventory
 	 * @param includeOffhand
 	 *            also search the offhand (slot 40), even if maxInvSlot is lower
-	 * @return
-	 *         the slot of the item, or -1 if no such item was found
+	 * @return the slot of the item, or -1 if no such item was found
 	 */
 	public static int indexOf(Predicate<ItemStack> predicate, int maxInvSlot,
 		boolean includeOffhand)
@@ -112,8 +111,7 @@ public enum InventoryUtils
 	 *            hotbar or 36 for the whole inventory
 	 * @param includeOffhand
 	 *            also search the offhand (slot 40), even if maxInvSlot is lower
-	 * @return
-	 *         the number of matching items in the player's inventory
+	 * @return the number of matching items in the player's inventory
 	 */
 	public static int count(Predicate<ItemStack> predicate, int maxInvSlot,
 		boolean includeOffhand)
