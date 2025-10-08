@@ -10,6 +10,7 @@ package net.wurstclient.hacks;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
+import net.minecraft.block.CropBlock;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.enchantment.Enchantment;
 import net.minecraft.enchantment.EnchantmentHelper;
@@ -156,6 +157,23 @@ public final class AutoToolHack extends Hack
 			repairMode.getValueI());
 	}
 	
+	public boolean needsHoeItem(BlockPos pos, boolean useSwords,
+		boolean useHands)
+	{
+		BlockState bs = MC.world.getBlockState(pos);
+		Block block = bs.getBlock();
+		String blockName = String.valueOf(block.getName()).toLowerCase();
+		
+		// Blocks that are best broken with hoes
+		return (blockName.contains("sculk") && !blockName.contains("shrieker")
+			&& !blockName.contains("catalyst")) || block instanceof CropBlock
+			|| block == Blocks.NETHER_WART || block == Blocks.WARPED_WART_BLOCK
+			|| block == Blocks.NETHER_WART_BLOCK || block == Blocks.SHROOMLIGHT
+			|| block == Blocks.MOSS_BLOCK || block == Blocks.MOSS_CARPET
+			|| block == Blocks.SCULK || block == Blocks.SCULK_VEIN
+			|| blockName.contains("leaves");
+	}
+	
 	public void equipBestTool(BlockPos pos, boolean useSwords, boolean useHands,
 		int repairMode)
 	{
@@ -181,6 +199,54 @@ public final class AutoToolHack extends Hack
 		player.getInventory().selectedSlot = bestSlot;
 	}
 	
+	/**
+	 * Determines the ideal tool type for specific blocks
+	 *
+	 * @param block
+	 *            The block to check
+	 * @return Tool preference: 0 = any, 1 = sword, 2 = pickaxe, 3 = axe, 4 =
+	 *         shovel, 5 = hoe
+	 */
+	private int getToolPreference(Block block, BlockState state)
+	{
+		String blockName = String.valueOf(block.getName()).toLowerCase();
+		
+		// Hoe preferred blocks
+		if(block == Blocks.NETHER_WART_BLOCK
+			|| block == Blocks.WARPED_WART_BLOCK || block == Blocks.SHROOMLIGHT
+			|| block == Blocks.MOSS_BLOCK || block == Blocks.MOSS_CARPET
+			|| (blockName.contains("sculk") && !blockName.contains("shrieker")
+				&& !blockName.contains("catalyst"))
+			|| block == Blocks.SCULK_VEIN || block instanceof CropBlock
+			|| block == Blocks.NETHER_WART || blockName.contains("leaves"))
+		{
+			return 5; // Hoe
+		}
+		
+		// Axe preferred blocks
+		if(block == Blocks.HAY_BLOCK || block == Blocks.TARGET
+			|| block == Blocks.DRIED_KELP_BLOCK)
+		{
+			return 3; // Axe
+		}
+		
+		// Shovel preferred blocks
+		if(block == Blocks.SPONGE || block == Blocks.WET_SPONGE)
+		{
+			return 4; // Shovel
+		}
+		
+		// Pickaxe preferred blocks (specific sculk blocks)
+		if(block == Blocks.SCULK_SHRIEKER || block == Blocks.SCULK_CATALYST
+			|| block == Blocks.SCULK_SENSOR)
+		{
+			return 2; // Pickaxe
+		}
+		
+		// For all other blocks, use the default Minecraft behavior
+		return 0;
+	}
+	
 	private int getBestSlot(BlockState state, boolean useSwords, int repairMode)
 	{
 		ClientPlayerEntity player = MC.player;
@@ -198,14 +264,17 @@ public final class AutoToolHack extends Hack
 		float bestSpeed = getMiningSpeed(heldItem, state);
 		if(isTooDamaged(heldItem, repairMode))
 			bestSpeed = 1;
+			
 		// If we need silk touch but held item doesn't have it, consider it
 		// ineffective
 		if(needsSilkTouch && !heldItemHasSilkTouch)
 			bestSpeed = 1;
-		
+		// Get tool preference for this block
+		int toolPreference = getToolPreference(block, state);
 		int bestSlot = -1;
 		
 		// First scan for a tool with silk touch if needed
+		
 		if(needsSilkTouch)
 		{
 			for(int slot = 0; slot < 9; slot++)
@@ -236,6 +305,7 @@ public final class AutoToolHack extends Hack
 			// If we found a silk touch tool, return it
 			if(bestSlot != -1)
 				return bestSlot;
+			
 		}
 		
 		// If we didn't need silk touch or couldn't find a silk touch tool,
@@ -271,7 +341,6 @@ public final class AutoToolHack extends Hack
 	private float getMiningSpeed(ItemStack stack, BlockState state)
 	{
 		float speed = stack.getMiningSpeedMultiplier(state);
-		
 		if(speed > 1)
 		{
 			DynamicRegistryManager drm =
@@ -432,5 +501,37 @@ public final class AutoToolHack extends Hack
 		return silkTouch
 			.map(entry -> EnchantmentHelper.getLevel(entry, stack) > 0)
 			.orElse(false);
+	}
+	
+	/**
+	 * Checks if an item is the preferred tool type
+	 *
+	 * @param stack
+	 *            The item stack to check
+	 * @param toolPreference
+	 *            The preferred tool type code
+	 * @return true if the item is the preferred tool
+	 */
+	private boolean isPreferredToolType(ItemStack stack, int toolPreference)
+	{
+		if(toolPreference == 0 || stack.isEmpty())
+			return false;
+		String itemName = stack.getItem().toString().toLowerCase();
+		
+		switch(toolPreference)
+		{
+			case 1: // Sword
+			return stack.getItem() instanceof SwordItem;
+			case 2: // Pickaxe
+			return itemName.contains("pickaxe");
+			case 3: // Axe
+			return itemName.contains("_axe");
+			case 4: // Shovel
+			return itemName.contains("shovel");
+			case 5: // Hoe
+			return itemName.contains("hoe");
+			default:
+			return false;
+		}
 	}
 }
