@@ -54,11 +54,18 @@ public final class AutoFarmHack extends Hack
 		"Auto-switch to BonemealAura",
 		"Automatically switches to BonemealAura when there are no more blocks to harvest or plant",
 		true);
+	private final CheckboxSetting ignoreMelons =
+		new CheckboxSetting("Ignore Melons",
+			"When enabled, AutoFarm will not harvest Melons ", true);
+	
+	private final CheckboxSetting ignorePumpkins =
+		new CheckboxSetting("Ignore Pumpkins", "Ignores pumpkins", true);
 	
 	private final CheckboxSetting ignoreSugarCane =
 		new CheckboxSetting("Ignore Sugar Cane",
 			"When enabled, AutoFarm will not harvest sugar cane.", false);
-	
+	private final CheckboxSetting ignoreCocoa =
+		new CheckboxSetting("Ignore Cocoa", "ignore the cocoa for now", true);
 	private final HashMap<Block, Item> seeds = new HashMap<>();
 	
 	{
@@ -107,6 +114,9 @@ public final class AutoFarmHack extends Hack
 		addSetting(plantCrops);
 		addSetting(autoSwitchToBonemeal);
 		addSetting(ignoreSugarCane);
+		addSetting(ignoreMelons);
+		addSetting(ignorePumpkins);
+		addSetting(ignoreCocoa);
 	}
 	
 	@Override
@@ -297,10 +307,13 @@ public final class AutoFarmHack extends Hack
 			return state.get(NetherWartBlock.AGE) >= 3;
 		
 		if(block instanceof CocoaBlock)
-			return state.get(CocoaBlock.AGE) >= 2;
+			return state.get(CocoaBlock.AGE) >= 2 && !ignoreCocoa.isChecked();
 		
-		if(block == Blocks.PUMPKIN || block == Blocks.MELON)
-			return true;
+		if(block instanceof PumpkinBlock)
+			return !ignorePumpkins.isChecked();
+		
+		if(block == Blocks.MELON)
+			return !ignoreMelons.isChecked();
 		
 		if(block instanceof SugarCaneBlock)
 			return !ignoreSugarCane.isChecked()
