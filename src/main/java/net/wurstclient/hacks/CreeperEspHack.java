@@ -7,15 +7,13 @@
  */
 package net.wurstclient.hacks;
 
-import java.awt.Color;
-import java.util.ArrayList;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
-
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.boss.WitherEntity;
 import net.minecraft.entity.mob.CreeperEntity;
 import net.minecraft.entity.mob.PhantomEntity;
+import net.minecraft.entity.mob.ShulkerEntity;
+import net.minecraft.entity.mob.WardenEntity;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
@@ -35,6 +33,11 @@ import net.wurstclient.util.RenderUtils;
 import net.wurstclient.util.RenderUtils.ColoredBox;
 import net.wurstclient.util.RenderUtils.ColoredPoint;
 
+import java.awt.*;
+import java.util.ArrayList;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
+
 @SearchTags({"creeper esp", "CreeperTracers", "creeper tracers",
 	"creeper finder", "phantom esp", "PhantomTracers", "phantom tracers"})
 public final class CreeperEspHack extends Hack implements UpdateListener,
@@ -53,12 +56,25 @@ public final class CreeperEspHack extends Hack implements UpdateListener,
 		"Phantoms will be highlighted in this color.",
 		new Color(100, 100, 255));
 	
+	private final ColorSetting wardenColor = new ColorSetting("Warden Color",
+		"Warden will be highlighted in this color.", new Color(100, 100, 255));
+	
+	private final ColorSetting witherColor = new ColorSetting("Wither Color",
+		"Withers will be highlighted in this color.", new Color(100, 100, 255));
+	
+	private final ColorSetting shulkerColor = new ColorSetting("Shulker Color",
+		"Shulkers will be highlighted in this color.",
+		new Color(100, 100, 255));
+	
 	private final SliderSetting distance = new SliderSetting("Distance",
 		"Maximum distance in blocks that mobs will be highlighted.", 50, 10,
 		200, 10, ValueDisplay.INTEGER);
 	
 	private final ArrayList<CreeperEntity> creepers = new ArrayList<>();
 	private final ArrayList<PhantomEntity> phantoms = new ArrayList<>();
+	private final ArrayList<WardenEntity> wardens = new ArrayList<>();
+	private final ArrayList<WitherEntity> withers = new ArrayList<>();
+	private final ArrayList<ShulkerEntity> shulkers = new ArrayList<>();
 	
 	public CreeperEspHack()
 	{
@@ -68,6 +84,9 @@ public final class CreeperEspHack extends Hack implements UpdateListener,
 		addSetting(boxSize);
 		addSetting(creeperColor);
 		addSetting(phantomColor);
+		addSetting(wardenColor);
+		addSetting(witherColor);
+		addSetting(shulkerColor);
 		addSetting(distance);
 	}
 	
@@ -92,6 +111,9 @@ public final class CreeperEspHack extends Hack implements UpdateListener,
 	{
 		creepers.clear();
 		phantoms.clear();
+		withers.clear();
+		wardens.clear();
+		shulkers.clear();
 		
 		// Get all entities
 		Stream<Entity> stream =
@@ -105,8 +127,14 @@ public final class CreeperEspHack extends Hack implements UpdateListener,
 			.forEach(entity -> {
 				if(entity instanceof CreeperEntity)
 					creepers.add((CreeperEntity)entity);
-				else if(entity instanceof PhantomEntity)
+				if(entity instanceof PhantomEntity)
 					phantoms.add((PhantomEntity)entity);
+				if(entity instanceof WardenEntity)
+					wardens.add((WardenEntity)entity);
+				if(entity instanceof ShulkerEntity)
+					shulkers.add((ShulkerEntity)entity);
+				else if(entity instanceof WitherEntity)
+					withers.add((WitherEntity)entity);
 			});
 	}
 	
@@ -122,7 +150,8 @@ public final class CreeperEspHack extends Hack implements UpdateListener,
 	public void onRender(MatrixStack matrixStack, float partialTicks)
 	{
 		// No need to render if no mobs were found
-		if(creepers.isEmpty() && phantoms.isEmpty())
+		if(creepers.isEmpty() && phantoms.isEmpty() && wardens.isEmpty()
+			&& shulkers.isEmpty() && withers.isEmpty())
 			return;
 		
 		// Render boxes
@@ -130,8 +159,8 @@ public final class CreeperEspHack extends Hack implements UpdateListener,
 		{
 			double extraSize = boxSize.getExtraSize() / 2;
 			
-			ArrayList<ColoredBox> boxes =
-				new ArrayList<>(creepers.size() + phantoms.size());
+			ArrayList<ColoredBox> boxes = new ArrayList<>(creepers.size()
+				+ phantoms.size() + wardens.size() + withers.size());
 			
 			// Add creeper boxes
 			int creeperBoxColor = creeperColor.getColorI(0x80);
@@ -148,6 +177,23 @@ public final class CreeperEspHack extends Hack implements UpdateListener,
 				
 				boxes.add(new ColoredBox(box, adjustedColor));
 			}
+			// Add warden boxes
+			int wardenBoxColor = wardenColor.getColorI(0x80);
+			for(WardenEntity e : wardens)
+			{
+				Box box = EntityUtils.getLerpedBox(e, partialTicks)
+					.offset(0, extraSize, 0).expand(extraSize);
+				boxes.add(new ColoredBox(box, wardenBoxColor));
+			}
+			// Add creeper boxes
+			int witherBoxColor = witherColor.getColorI(0x80);
+			for(WitherEntity e : withers)
+			{
+				Box box = EntityUtils.getLerpedBox(e, partialTicks)
+					.offset(0, extraSize, 0).expand(extraSize);
+				
+				boxes.add(new ColoredBox(box, witherBoxColor));
+			}
 			
 			// Add phantom boxes
 			int phantomBoxColor = phantomColor.getColorI(0x80);
@@ -158,6 +204,13 @@ public final class CreeperEspHack extends Hack implements UpdateListener,
 				boxes.add(new ColoredBox(box, phantomBoxColor));
 			}
 			
+			int shulkerBoxColor = shulkerColor.getColorI(0x80);
+			for(ShulkerEntity e : shulkers)
+			{
+				Box box = EntityUtils.getLerpedBox(e, partialTicks)
+					.offset(0, extraSize, 0).expand(extraSize);
+				boxes.add(new ColoredBox(box, shulkerBoxColor));
+			}
 			RenderUtils.drawOutlinedBoxes(matrixStack, boxes, false);
 		}
 		
@@ -184,12 +237,28 @@ public final class CreeperEspHack extends Hack implements UpdateListener,
 			}
 			
 			// Add phantom tracers
-			int phantomLineColor = phantomColor.getColorI(0x80);
-			for(PhantomEntity e : phantoms)
+			int wardenLineColor = wardenColor.getColorI(0x80);
+			for(WardenEntity e : wardens)
 			{
 				Vec3d point =
 					EntityUtils.getLerpedBox(e, partialTicks).getCenter();
-				ends.add(new ColoredPoint(point, phantomLineColor));
+				ends.add(new ColoredPoint(point, wardenLineColor));
+			}
+			// Add shulker tracers
+			int shulkerLineColor = shulkerColor.getColorI(0x80);
+			for(ShulkerEntity e : shulkers)
+			{
+				Vec3d point =
+					EntityUtils.getLerpedBox(e, partialTicks).getCenter();
+				ends.add(new ColoredPoint(point, shulkerLineColor));
+			}
+			// Add wither tracers
+			int witherLineColor = witherColor.getColorI(0x80);
+			for(WitherEntity e : withers)
+			{
+				Vec3d point =
+					EntityUtils.getLerpedBox(e, partialTicks).getCenter();
+				ends.add(new ColoredPoint(point, witherLineColor));
 			}
 			
 			RenderUtils.drawTracers(matrixStack, partialTicks, ends, false);
