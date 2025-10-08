@@ -7,13 +7,10 @@
  */
 package net.wurstclient.hacks;
 
-import java.util.Comparator;
-import java.util.function.ToDoubleFunction;
-import java.util.stream.Stream;
-
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.mob.HostileEntity;
 import net.minecraft.util.Hand;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
@@ -23,19 +20,18 @@ import net.wurstclient.events.HandleInputListener;
 import net.wurstclient.events.RenderListener;
 import net.wurstclient.events.UpdateListener;
 import net.wurstclient.hack.Hack;
-import net.wurstclient.settings.AttackSpeedSliderSetting;
-import net.wurstclient.settings.CheckboxSetting;
-import net.wurstclient.settings.EnumSetting;
-import net.wurstclient.settings.PauseAttackOnContainersSetting;
-import net.wurstclient.settings.SliderSetting;
+import net.wurstclient.settings.*;
 import net.wurstclient.settings.SliderSetting.ValueDisplay;
-import net.wurstclient.settings.SwingHandSetting;
 import net.wurstclient.settings.SwingHandSetting.SwingHand;
 import net.wurstclient.settings.filterlists.EntityFilterList;
 import net.wurstclient.util.BlockUtils;
 import net.wurstclient.util.EntityUtils;
 import net.wurstclient.util.RenderUtils;
 import net.wurstclient.util.RotationUtils;
+
+import java.util.Comparator;
+import java.util.function.ToDoubleFunction;
+import java.util.stream.Stream;
 
 @SearchTags({"kill aura", "ForceField", "force field", "CrystalAura",
 	"crystal aura", "AutoCrystal", "auto crystal"})
@@ -91,6 +87,8 @@ public final class KillauraHack extends Hack
 	
 	private Entity target;
 	private Entity renderTarget;
+	private boolean autoSwordEnabled = false;
+	public boolean hasTarget = false;
 	
 	public KillauraHack()
 	{
@@ -114,6 +112,7 @@ public final class KillauraHack extends Hack
 	protected void onEnable()
 	{
 		// disable other killauras
+		autoSwordEnabled = WURST.getHax().autoSwordHack.isEnabled();
 		WURST.getHax().aimAssistHack.setEnabled(false);
 		WURST.getHax().clickAuraHack.setEnabled(false);
 		WURST.getHax().crystalAuraHack.setEnabled(false);
@@ -123,6 +122,8 @@ public final class KillauraHack extends Hack
 		WURST.getHax().protectHack.setEnabled(false);
 		WURST.getHax().triggerBotHack.setEnabled(false);
 		WURST.getHax().tpAuraHack.setEnabled(false);
+		if(!autoSwordEnabled)
+			WURST.getHax().autoSwordHack.setEnabled(true);
 		
 		speed.resetTimer(speedRandMS.getValue());
 		EVENTS.add(UpdateListener.class, this);
@@ -133,6 +134,7 @@ public final class KillauraHack extends Hack
 	@Override
 	protected void onDisable()
 	{
+		WURST.getHax().autoSwordHack.setEnabled(autoSwordEnabled);
 		EVENTS.remove(UpdateListener.class, this);
 		EVENTS.remove(HandleInputListener.class, this);
 		EVENTS.remove(RenderListener.class, this);
@@ -144,13 +146,13 @@ public final class KillauraHack extends Hack
 	@Override
 	public void onUpdate()
 	{
+		
 		speed.updateTimer();
 		if(!speed.isTimeToAttack())
 			return;
 		
 		if(pauseOnContainers.shouldPause())
 			return;
-		
 		Stream<Entity> stream = EntityUtils.getAttackableEntities();
 		double rangeSq = range.getValueSq();
 		stream = stream.filter(e -> MC.player.squaredDistanceTo(e) <= rangeSq);
@@ -166,12 +168,14 @@ public final class KillauraHack extends Hack
 		if(target == null)
 			return;
 		
+		hasTarget = true;
 		WURST.getHax().autoSwordHack.setSlot(target);
 		
 		Vec3d hitVec = target.getBoundingBox().getCenter();
 		if(checkLOS.isChecked() && !BlockUtils.hasLineOfSight(hitVec))
 		{
 			target = null;
+			hasTarget = false;
 			return;
 		}
 		
@@ -224,8 +228,11 @@ public final class KillauraHack extends Hack
 			e -> RotationUtils
 				.getAngleToLookVec(e.getBoundingBox().getCenter())),
 		
-		HEALTH("Health", e -> e instanceof LivingEntity
-			? ((LivingEntity)e).getHealth() : Integer.MAX_VALUE);
+		HEALTH("Health",
+			e -> e instanceof LivingEntity ? ((LivingEntity)e).getHealth()
+				: Integer.MAX_VALUE),
+		ARMOR("DANGER", e -> e instanceof HostileEntity
+			? ((HostileEntity)e).getArmor() : Integer.MAX_VALUE);
 		
 		private final String name;
 		private final Comparator<Entity> comparator;
