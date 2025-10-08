@@ -54,80 +54,79 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 @SearchTags({"auto librarian", "AutoVillager", "auto villager",
-	"VillagerTrainer", "villager trainer", "LibrarianTrainer",
-	"librarian trainer", "AutoHmmm", "auto hmmm"})
+		"VillagerTrainer", "villager trainer", "LibrarianTrainer",
+		"librarian trainer", "AutoHmmm", "auto hmmm"})
 public final class AutoLibrarianHack extends Hack
-	implements UpdateListener, RenderListener
-{
+		implements UpdateListener, RenderListener {
 	private final BookOffersSetting wantedBooks = new BookOffersSetting(
-		"Wanted books",
-		"A list of enchanted books that you want your villagers to sell.\n\n"
-			+ "AutoLibrarian will stop training the current villager"
-			+ " once it has learned to sell one of these books.\n\n"
-			+ "You can also set a maximum price for each book, in case you"
-			+ " already have a villager selling it but you want it for a"
-			+ " cheaper price.",
-		"minecraft:depth_strider;3", "minecraft:efficiency;5",
-		"minecraft:feather_falling;4", "minecraft:fortune;3",
-		"minecraft:looting;3", "minecraft:mending;1", "minecraft:protection;4",
-		"minecraft:respiration;3", "minecraft:sharpness;5",
-		"minecraft:silk_touch;1", "minecraft:unbreaking;3");
+			"Wanted books",
+			"A list of enchanted books that you want your villagers to sell.\n\n"
+					+ "AutoLibrarian will stop training the current villager"
+					+ " once it has learned to sell one of these books.\n\n"
+					+ "You can also set a maximum price for each book, in case you"
+					+ " already have a villager selling it but you want it for a"
+					+ " cheaper price.",
+			"minecraft:depth_strider;3", "minecraft:efficiency;5",
+			"minecraft:feather_falling;4", "minecraft:fortune;3",
+			"minecraft:looting;3", "minecraft:mending;1", "minecraft:protection;4",
+			"minecraft:respiration;3", "minecraft:sharpness;5",
+			"minecraft:silk_touch;1", "minecraft:unbreaking;3");
 	private final CheckboxSetting useMessages =
-		new CheckboxSetting("Use Messages", "test", false);
+			new CheckboxSetting("Use Messages", "test", false);
 	private final CheckboxSetting lockInTrade = new CheckboxSetting(
-		"Lock in trade",
-		"Automatically buys something from the villager once it has learned to"
-			+ " sell the book you want. This prevents the villager from"
-			+ " changing its trade offers later.\n\n"
-			+ "Make sure you have at least 24 paper and 9 emeralds in your"
-			+ " inventory when using this feature. Alternatively, 1 book and"
-			+ " 64 emeralds will also work.",
-		false);
+			"Lock in trade",
+			"Automatically buys something from the villager once it has learned to"
+					+ " sell the book you want. This prevents the villager from"
+					+ " changing its trade offers later.\n\n"
+					+ "Make sure you have at least 24 paper and 9 emeralds in your"
+					+ " inventory when using this feature. Alternatively, 1 book and"
+					+ " 64 emeralds will also work.",
+			false);
 	
 	private final UpdateBooksSetting updateBooks = new UpdateBooksSetting();
 	
 	private final SliderSetting range =
-		new SliderSetting("Range", 5, 1, 6, 0.05, ValueDisplay.DECIMAL);
+			new SliderSetting("Range", 5, 1, 6, 0.05, ValueDisplay.DECIMAL);
 	
 	private final FacingSetting facing = FacingSetting.withoutPacketSpam(
-		"How AutoLibrarian should face the villager and job site.\n\n"
-			+ "\u00a7lOff\u00a7r - Don't face the villager at all. Will be"
-			+ " detected by anti-cheat plugins.\n\n"
-			+ "\u00a7lServer-side\u00a7r - Face the villager on the"
-			+ " server-side, while still letting you move the camera freely on"
-			+ " the client-side.\n\n"
-			+ "\u00a7lClient-side\u00a7r - Face the villager by moving your"
-			+ " camera on the client-side. This is the most legit option, but"
-			+ " can be disorienting to look at.");
+			"How AutoLibrarian should face the villager and job site.\n\n"
+					+ "\u00a7lOff\u00a7r - Don't face the villager at all. Will be"
+					+ " detected by anti-cheat plugins.\n\n"
+					+ "\u00a7lServer-side\u00a7r - Face the villager on the"
+					+ " server-side, while still letting you move the camera freely on"
+					+ " the client-side.\n\n"
+					+ "\u00a7lClient-side\u00a7r - Face the villager by moving your"
+					+ " camera on the client-side. This is the most legit option, but"
+					+ " can be disorienting to look at.");
 	
 	private final SwingHandSetting swingHand =
-		new SwingHandSetting(this, SwingHand.SERVER);
+			new SwingHandSetting(this, SwingHand.SERVER);
 	private final SliderSetting repairMode = new SliderSetting("Repair mode",
-		"Prevents AutoLibrarian from using your axe when its durability reaches"
-			+ " the given threshold, so you can repair it before it breaks.\n"
-			+ "Can be adjusted from 0 (off) to 100 remaining uses.",
-		1, 0, 100, 1, ValueDisplay.INTEGER.withLabel(0, "off"));
+			"Prevents AutoLibrarian from using your axe when its durability reaches"
+					+ " the given threshold, so you can repair it before it breaks.\n"
+					+ "Can be adjusted from 0 (off) to 100 remaining uses.",
+			1, 0, 100, 1, ValueDisplay.INTEGER.withLabel(0, "off"));
 	private final SliderSetting maxTries = new SliderSetting("Max Tries",
-		"Prevents AutoLibrarian from spamming the server with requests (and some plugins)"
-			+ " by setting the amount of tries to trade.\n"
-			+ "Can be adjusted from 0 (off) to 20.",
-		1, 0, 20, 1, ValueDisplay.INTEGER.withLabel(0, "off"));
+			"Prevents AutoLibrarian from spamming the server with requests (and some plugins)"
+					+ " by setting the amount of tries to trade.\n"
+					+ "Can be adjusted from 0 (off) to 20.",
+			1, 0, 20, 1, ValueDisplay.INTEGER.withLabel(0, "off"));
 	
 	private final SliderSetting goodDealThreshold = new SliderSetting(
-		"Good Deal Threshold",
-		"Stops and alerts you when finding a max-level enchanted book with a cost below this threshold.\n"
-			+ "This allows you to find good deals even if they're not on your wanted list.\n"
-			+ "Focuses on max-level enchantments for better efficiency.\n"
-			+ "Can be adjusted from 0 (off) to 64 emeralds.",
-		12, 0, 64, 1, ValueDisplay.INTEGER.withLabel(0, "off"));
+			"Good Deal Threshold",
+			"Stops and alerts you when finding a max-level enchanted book with a cost below this threshold.\n"
+					+ "This allows you to find good deals even if they're not on your wanted list.\n"
+					+ "Focuses on max-level enchantments for better efficiency.\n"
+					+ "Can be adjusted from 0 (off) to 64 emeralds.",
+			12, 0, 64, 1, ValueDisplay.INTEGER.withLabel(0, "off"));
 	
 	private final OverlayRenderer overlay = new OverlayRenderer();
 	private final HashSet<VillagerEntity> experiencedVillagers =
-		new HashSet<>();
+			new HashSet<>();
 	
 	// Map of enchantments and their maximum levels
 	private static final java.util.Map<String, Integer> MAX_ENCHANTMENT_LEVELS =
-		initMaxEnchantmentLevels();
+			initMaxEnchantmentLevels();
 	
 	private VillagerEntity villager;
 	private BlockPos jobSite;
@@ -138,8 +137,7 @@ public final class AutoLibrarianHack extends Hack
 	/**
 	 * Initialize the map of maximum enchantment levels
 	 */
-	private static java.util.Map<String, Integer> initMaxEnchantmentLevels()
-	{
+	private static java.util.Map<String, Integer> initMaxEnchantmentLevels() {
 		java.util.Map<String, Integer> map = new java.util.HashMap<>();
 		
 		// Protection enchantments
@@ -193,10 +191,8 @@ public final class AutoLibrarianHack extends Hack
 		
 		// Also add enchantments without the minecraft: prefix for compatibility
 		// with enchantment IDs that might not have the prefix
-		for(String key : new java.util.ArrayList<>(map.keySet()))
-		{
-			if(key.startsWith("minecraft:"))
-			{
+		for (String key : new java.util.ArrayList<>(map.keySet())) {
+			if (key.startsWith("minecraft:")) {
 				String shortKey = key.substring("minecraft:".length());
 				map.put(shortKey, map.get(key));
 			}
@@ -205,8 +201,7 @@ public final class AutoLibrarianHack extends Hack
 		return java.util.Collections.unmodifiableMap(map);
 	}
 	
-	public AutoLibrarianHack()
-	{
+	public AutoLibrarianHack() {
 		super("AutoLibrarian");
 		setCategory(Category.OTHER);
 		addSetting(wantedBooks);
@@ -222,20 +217,17 @@ public final class AutoLibrarianHack extends Hack
 	}
 	
 	@Override
-	protected void onEnable()
-	{
+	protected void onEnable() {
 		EVENTS.add(UpdateListener.class, this);
 		EVENTS.add(RenderListener.class, this);
 	}
 	
 	@Override
-	protected void onDisable()
-	{
+	protected void onDisable() {
 		EVENTS.remove(UpdateListener.class, this);
 		EVENTS.remove(RenderListener.class, this);
 		
-		if(breakingJobSite)
-		{
+		if (breakingJobSite) {
 			MC.interactionManager.breakingBlock = true;
 			MC.interactionManager.cancelBlockBreaking();
 			breakingJobSite = false;
@@ -250,38 +242,32 @@ public final class AutoLibrarianHack extends Hack
 	}
 	
 	@Override
-	public void onUpdate()
-	{
-		if(villager == null)
-		{
+	public void onUpdate() {
+		if (villager == null) {
 			setTargetVillager();
 			return;
 		}
 		
-		if(jobSite == null)
-		{
+		if (jobSite == null) {
 			setTargetJobSite();
 			return;
 		}
 		
-		if(placingJobSite && breakingJobSite)
+		if (placingJobSite && breakingJobSite)
 			throw new IllegalStateException(
-				"Trying to place and break job site at the same time. Something is wrong.");
+					"Trying to place and break job site at the same time. Something is wrong.");
 		
-		if(placingJobSite)
-		{
+		if (placingJobSite) {
 			placeJobSite();
 			return;
 		}
 		
-		if(breakingJobSite)
-		{
+		if (breakingJobSite) {
 			breakJobSite();
 			return;
 		}
 		
-		if(!(MC.currentScreen instanceof MerchantScreen tradeScreen))
-		{
+		if (!(MC.currentScreen instanceof MerchantScreen tradeScreen)) {
 			openTradeScreen();
 			return;
 		}
@@ -289,13 +275,11 @@ public final class AutoLibrarianHack extends Hack
 		// Can't see experience until the trade screen is open, so we have to
 		// check it here and start over if the villager is already experienced.
 		int experience = tradeScreen.getScreenHandler().getExperience();
-		if(experience > 0)
-		{
-			if(this.useMessages.isChecked())
-			{
+		if (experience > 0) {
+			if (this.useMessages.isChecked()) {
 				ChatUtils.warning("Villager at "
-					+ villager.getBlockPos().toShortString()
-					+ " is already experienced, meaning it can't be trained anymore.");
+						+ villager.getBlockPos().toShortString()
+						+ " is already experienced, meaning it can't be trained anymore.");
 				ChatUtils.message("Looking for another villager...");
 				
 			}
@@ -308,12 +292,10 @@ public final class AutoLibrarianHack extends Hack
 		
 		// check which book the villager is selling
 		BookOffer bookOffer =
-			findEnchantedBookOffer(tradeScreen.getScreenHandler().getRecipes());
+				findEnchantedBookOffer(tradeScreen.getScreenHandler().getRecipes());
 		
-		if(bookOffer == null)
-		{
-			if(this.useMessages.isChecked())
-			{
+		if (bookOffer == null) {
+			if (this.useMessages.isChecked()) {
 				ChatUtils.message("Villager is not selling an enchanted book.");
 			}
 			closeTradeScreen();
@@ -322,11 +304,10 @@ public final class AutoLibrarianHack extends Hack
 			return;
 		}
 		
-		if(this.useMessages.isChecked())
-		{
+		if (this.useMessages.isChecked()) {
 			ChatUtils.message(
-				"Villager is selling " + bookOffer.getEnchantmentNameWithLevel()
-					+ " for " + bookOffer.getFormattedPrice() + ".");
+					"Villager is selling " + bookOffer.getEnchantmentNameWithLevel()
+							+ " for " + bookOffer.getFormattedPrice() + ".");
 			
 		}
 		
@@ -335,8 +316,7 @@ public final class AutoLibrarianHack extends Hack
 		
 		// If it's a good deal but not on the wanted list, wait for the user
 		// decision
-		if(isGoodDeal && !wantedBooks.isWanted(bookOffer))
-		{
+		if (isGoodDeal && !wantedBooks.isWanted(bookOffer)) {
 			// Keep the trade screen open and wait for the user to decide
 			// User can manually close and re-enable the hack if they don't want
 			// it
@@ -345,11 +325,9 @@ public final class AutoLibrarianHack extends Hack
 		}
 		
 		// if wrong enchantment, break the job site and start over
-		if(!wantedBooks.isWanted(bookOffer))
-		{
+		if (!wantedBooks.isWanted(bookOffer)) {
 			breakingJobSite = true;
-			if(this.useMessages.isChecked())
-			{
+			if (this.useMessages.isChecked()) {
 				System.out.println("Breaking job site...");
 			}
 			closeTradeScreen();
@@ -357,18 +335,17 @@ public final class AutoLibrarianHack extends Hack
 		}
 		
 		// lock in the trade, if enabled
-		if(lockInTrade.isChecked())
-		{
+		if (lockInTrade.isChecked()) {
 			// select the first valid trade
 			tradeScreen.getScreenHandler().setRecipeIndex(0);
 			tradeScreen.getScreenHandler().switchTo(0);
 			MC.getNetworkHandler()
-				.sendPacket(new SelectMerchantTradeC2SPacket(0));
+					.sendPacket(new SelectMerchantTradeC2SPacket(0));
 			
 			// buy whatever the villager is selling
 			MC.interactionManager.clickSlot(
-				tradeScreen.getScreenHandler().syncId, 2, 0,
-				SlotActionType.PICKUP, MC.player);
+					tradeScreen.getScreenHandler().syncId, 2, 0,
+					SlotActionType.PICKUP, MC.player);
 			
 			// close the trade screen
 			closeTradeScreen();
@@ -381,18 +358,15 @@ public final class AutoLibrarianHack extends Hack
 		setEnabled(false);
 	}
 	
-	private void breakJobSite()
-	{
-		if(jobSite == null)
+	private void breakJobSite() {
+		if (jobSite == null)
 			throw new IllegalStateException("Job site is null.");
 		
 		BlockBreakingParams params =
-			BlockBreaker.getBlockBreakingParams(jobSite);
+				BlockBreaker.getBlockBreakingParams(jobSite);
 		
-		if(params == null || BlockUtils.getState(jobSite).isReplaceable())
-		{
-			if(this.useMessages.isChecked())
-			{
+		if (params == null || BlockUtils.getState(jobSite).isReplaceable()) {
+			if (this.useMessages.isChecked()) {
 				System.out.println("Job site has been broken. Replacing...");
 			}
 			breakingJobSite = false;
@@ -402,14 +376,14 @@ public final class AutoLibrarianHack extends Hack
 		
 		// equip tool
 		WURST.getHax().autoToolHack.equipBestTool(jobSite, false, true,
-			repairMode.getValueI());
+				repairMode.getValueI());
 		
 		// face block
 		facing.getSelected().face(params.hitVec());
 		
 		// damage block and swing hand
-		if(MC.interactionManager.updateBlockBreakingProgress(jobSite,
-			params.side()))
+		if (MC.interactionManager.updateBlockBreakingProgress(jobSite,
+				params.side()))
 			swingHand.swing(Hand.MAIN_HAND);
 		
 		// update progress
@@ -417,22 +391,18 @@ public final class AutoLibrarianHack extends Hack
 		overlay.updateProgress();
 	}
 	
-	private void placeJobSite()
-	{
-		if(jobSite == null)
+	private void placeJobSite() {
+		if (jobSite == null)
 			throw new IllegalStateException("Job site is null.");
 		
-		if(!BlockUtils.getState(jobSite).isReplaceable())
-		{
-			if(BlockUtils.getBlock(jobSite) == Blocks.LECTERN)
-			{
+		if (!BlockUtils.getState(jobSite).isReplaceable()) {
+			if (BlockUtils.getBlock(jobSite) == Blocks.LECTERN) {
 				// System.out.println("Job site has been placed.");
 				placingJobSite = false;
 				
-			}else
-			{
+			} else {
 				System.out
-					.println("Found wrong block at job site. Breaking...");
+						.println("Found wrong block at job site. Breaking...");
 				breakingJobSite = true;
 				placingJobSite = false;
 			}
@@ -441,26 +411,28 @@ public final class AutoLibrarianHack extends Hack
 		}
 		
 		// check if holding a lectern
-		if(!MC.player.isHolding(Items.LECTERN))
-		{
+		if (!MC.player.isHolding(Items.LECTERN)) {
+			ItemStack lecternStack = Items.LECTERN.getDefaultStack();
+			if (!(MC.player.getInventory().contains(lecternStack))) {
+				this.onDisable();
+			}
 			InventoryUtils.selectItem(Items.LECTERN, 36);
 			return;
 		}
 		
 		// get the hand that is holding the lectern
 		Hand hand = MC.player.getMainHandStack().isOf(Items.LECTERN)
-			? Hand.MAIN_HAND : Hand.OFF_HAND;
+				? Hand.MAIN_HAND : Hand.OFF_HAND;
 		
 		// sneak-place to avoid activating trapdoors/chests/etc.
 		IKeyBinding sneakKey = IKeyBinding.get(MC.options.sneakKey);
 		sneakKey.setPressed(true);
-		if(!MC.player.isSneaking())
+		if (!MC.player.isSneaking())
 			return;
 		
 		// get block placing params
 		BlockPlacingParams params = BlockPlacer.getBlockPlacingParams(jobSite);
-		if(params == null)
-		{
+		if (params == null) {
 			sneakKey.resetPressedState();
 			return;
 		}
@@ -470,43 +442,39 @@ public final class AutoLibrarianHack extends Hack
 		
 		// place block
 		ActionResult result = MC.interactionManager.interactBlock(MC.player,
-			hand, params.toHitResult());
+				hand, params.toHitResult());
 		
 		// swing hand
-		if(result instanceof ActionResult.Success success
-			&& success.swingSource() == ActionResult.SwingSource.CLIENT)
+		if (result instanceof ActionResult.Success success
+				&& success.swingSource() == ActionResult.SwingSource.CLIENT)
 			swingHand.swing(hand);
 		
 		// reset sneak
 		sneakKey.resetPressedState();
 	}
 	
-	private void openTradeScreen()
-	{
-		if(MC.itemUseCooldown > 0)
+	private void openTradeScreen() {
+		if (MC.itemUseCooldown > 0)
 			return;
 		
 		executionCount++;
 		
-		if(maxTries.getValueI() > 0 && executionCount >= maxTries.getValueI())
-		{
+		if (maxTries.getValueI() > 0 && executionCount >= maxTries.getValueI()) {
 			ChatUtils.error("Max tries " + maxTries.getValueI()
-				+ " reached. Breaking and trying again.");
+					+ " reached. Breaking and trying again.");
 			breakingJobSite = true;
 			placingJobSite = false;
 			return;
 		}
 		
-		if(executionCount >= maxTries.getValueI())
-		{
+		if (executionCount >= maxTries.getValueI()) {
 			ChatUtils.error("Max tries " + maxTries.getValueI()
-				+ " reached. Breaking and trying again.");
+					+ " reached. Breaking and trying again.");
 			breakingJobSite = true;
 			placingJobSite = false;
 			return;
 		}
-		if(executionCount > 100)
-		{
+		if (executionCount > 100) {
 			breakingJobSite = true;
 			placingJobSite = false;
 			return;
@@ -515,10 +483,9 @@ public final class AutoLibrarianHack extends Hack
 		ClientPlayerInteractionManager im = MC.interactionManager;
 		ClientPlayerEntity player = MC.player;
 		
-		if(player.squaredDistanceTo(villager) > range.getValueSq())
-		{
+		if (player.squaredDistanceTo(villager) > range.getValueSq()) {
 			ChatUtils.error("Villager is out of range. Consider trapping"
-				+ " the villager so it doesn't wander away.");
+					+ " the villager so it doesn't wander away.");
 			setEnabled(false);
 			return;
 		}
@@ -536,78 +503,71 @@ public final class AutoLibrarianHack extends Hack
 		// click on villager
 		Hand hand = Hand.MAIN_HAND;
 		ActionResult actionResult =
-			im.interactEntityAtLocation(player, villager, hitResult, hand);
+				im.interactEntityAtLocation(player, villager, hitResult, hand);
 		
-		if(!actionResult.isAccepted())
+		if (!actionResult.isAccepted())
 			im.interactEntity(player, villager, hand);
 		
 		// swing hand
-		if(actionResult instanceof ActionResult.Success success
-			&& success.swingSource() == ActionResult.SwingSource.CLIENT)
+		if (actionResult instanceof ActionResult.Success success
+				&& success.swingSource() == ActionResult.SwingSource.CLIENT)
 			swingHand.swing(hand);
 		
 		// set cooldown
 		MC.itemUseCooldown = 4;
 	}
 	
-	private void closeTradeScreen()
-	{
+	private void closeTradeScreen() {
 		MC.player.closeHandledScreen();
 		MC.itemUseCooldown = 4;
 		executionCount = 0;
 	}
 	
-	private BookOffer findEnchantedBookOffer(TradeOfferList tradeOffers)
-	{
-		for(TradeOffer tradeOffer : tradeOffers)
-		{
+	private BookOffer findEnchantedBookOffer(TradeOfferList tradeOffers) {
+		for (TradeOffer tradeOffer : tradeOffers) {
 			ItemStack stack = tradeOffer.getSellItem();
-			if(stack.getItem() != Items.ENCHANTED_BOOK)
+			if (stack.getItem() != Items.ENCHANTED_BOOK)
 				continue;
 			
 			Set<Entry<RegistryEntry<Enchantment>>> enchantmentLevelMap =
-				EnchantmentHelper.getEnchantments(stack)
-					.getEnchantmentEntries();
-			if(enchantmentLevelMap.isEmpty())
+					EnchantmentHelper.getEnchantments(stack)
+							.getEnchantmentEntries();
+			if (enchantmentLevelMap.isEmpty())
 				continue;
 			
 			Object2IntMap.Entry<RegistryEntry<Enchantment>> firstEntry =
-				enchantmentLevelMap.stream().findFirst().orElseThrow();
+					enchantmentLevelMap.stream().findFirst().orElseThrow();
 			
 			String enchantment = firstEntry.getKey().getIdAsString();
 			int level = firstEntry.getIntValue();
 			int price = tradeOffer.getDisplayedFirstBuyItem().getCount();
 			BookOffer bookOffer = new BookOffer(enchantment, level, price);
 			
-			if(!bookOffer.isFullyValid())
-			{
+			if (!bookOffer.isFullyValid()) {
 				System.out.println("Found invalid enchanted book offer.\n"
-					+ "Component data: " + enchantmentLevelMap);
+						+ "Component data: " + enchantmentLevelMap);
 				continue;
 			}
 			
 			// Add debug log to help diagnose enchantment ID issues
-			if(useMessages.isChecked())
-			{
+			if (useMessages.isChecked()) {
 				System.out.println("Found enchanted book: " + enchantment
-					+ " at level " + level + " for " + price + " emeralds");
+						+ " at level " + level + " for " + price + " emeralds");
 				
 				// Log max level info for this enchantment
 				int maxLevel =
-					MAX_ENCHANTMENT_LEVELS.getOrDefault(enchantment, -1);
-				if(maxLevel == -1)
-				{
+						MAX_ENCHANTMENT_LEVELS.getOrDefault(enchantment, -1);
+				if (maxLevel == -1) {
 					// Try without minecraft: prefix
-					if(enchantment.startsWith("minecraft:"))
-					{
+					if (enchantment.startsWith("minecraft:")) {
 						String shortKey =
-							enchantment.substring("minecraft:".length());
+								enchantment.substring("minecraft:".length());
 						maxLevel =
-							MAX_ENCHANTMENT_LEVELS.getOrDefault(shortKey, 1);
+								MAX_ENCHANTMENT_LEVELS.getOrDefault(shortKey, 1);
 					}
 				}
 				System.out.println(
-					"Max level for " + enchantment + " is " + maxLevel);
+						"Max level for " + enchantment + " is " + maxLevel);
 			}
 			
 			// Check if this is a good deal based on the threshold setting
@@ -623,52 +583,47 @@ public final class AutoLibrarianHack extends Hack
 	 * Checks if an enchanted book is below the good deal threshold
 	 * and alerts the player if it is.
 	 *
-	 * @param bookOffer
-	 *            the book offers to check
+	 * @param bookOffer the book offers to check
 	 * @return true if it's a good deal, false otherwise
 	 */
-	private boolean checkForGoodDeal(BookOffer bookOffer)
-	{
+	private boolean checkForGoodDeal(BookOffer bookOffer) {
 		// If a threshold is off (0), return immediately
 		int threshold = goodDealThreshold.getValueI();
-		if(threshold == 0)
+		if (threshold == 0)
 			return false;
 		
 		// Check if the book's price is below our threshold
 		int price = bookOffer.price();
-		if(price <= threshold)
-		{
+		if (price <= threshold) {
 			// Get enchantment info for display
 			String enchantmentName = bookOffer.getEnchantmentNameWithLevel();
 			
 			// Show notification in chat
 			ChatUtils.message("§a§lGOOD DEAL FOUND!§r");
 			ChatUtils.message("§e" + enchantmentName + "§r for §a"
-				+ bookOffer.getFormattedPrice() + "§r");
+					+ bookOffer.getFormattedPrice() + "§r");
 			
 			// Add a notification sound
 			MC.player.playSound(
-				net.minecraft.sound.SoundEvents.ENTITY_EXPERIENCE_ORB_PICKUP,
-				1.0F, 1.0F);
+					net.minecraft.sound.SoundEvents.ENTITY_EXPERIENCE_ORB_PICKUP,
+					1.0F, 1.0F);
 			
 			// Show a title notification
-			if(MC.inGameHud != null)
-			{
+			if (MC.inGameHud != null) {
 				MC.inGameHud.setTitle(
-					net.minecraft.text.Text.literal("§a§lGOOD DEAL!"));
+						net.minecraft.text.Text.literal("§a§lGOOD DEAL!"));
 				MC.inGameHud.setSubtitle(
-					net.minecraft.text.Text.literal("§e" + enchantmentName
-						+ "§r for §a" + bookOffer.getFormattedPrice()));
+						net.minecraft.text.Text.literal("§e" + enchantmentName
+								+ "§r for §a" + bookOffer.getFormattedPrice()));
 				MC.inGameHud.setTitleTicks(10, 60, 20);
 			}
 			
 			// Don't break the job site if it's a good deal, but not on the
 			// wanted list
-			if(!wantedBooks.isWanted(bookOffer))
-			{
+			if (!wantedBooks.isWanted(bookOffer)) {
 				ChatUtils.message("§6This book is not on your wanted list.§r");
 				ChatUtils.message(
-					"§6Pausing automation - decide if you want this deal.§r");
+						"§6Pausing automation - decide if you want this deal.§r");
 				
 				// Let the user decide if they want this book by temporarily
 				// pausing
@@ -681,38 +636,36 @@ public final class AutoLibrarianHack extends Hack
 		return false;
 	}
 	
-	private void setTargetVillager()
-	{
+	private void setTargetVillager() {
 		ClientPlayerEntity player = MC.player;
 		double rangeSq = range.getValueSq();
 		
 		Stream<VillagerEntity> stream =
-			StreamSupport.stream(MC.world.getEntities().spliterator(), true)
-				.filter(e -> !e.isRemoved())
-				.filter(VillagerEntity.class::isInstance)
-				.map(e -> (VillagerEntity)e).filter(e -> e.getHealth() > 0)
-				.filter(e -> player.squaredDistanceTo(e) <= rangeSq)
-				.filter(e -> e.getVillagerData()
-					.getProfession() == VillagerProfession.LIBRARIAN)
-				.filter(e -> e.getVillagerData().getLevel() == 1)
-				.filter(e -> !experiencedVillagers.contains(e));
+				StreamSupport.stream(MC.world.getEntities().spliterator(), true)
+						.filter(e -> !e.isRemoved())
+						.filter(VillagerEntity.class::isInstance)
+						.map(e -> (VillagerEntity) e).filter(e -> e.getHealth() > 0)
+						.filter(e -> player.squaredDistanceTo(e) <= rangeSq)
+						.filter(e -> e.getVillagerData()
+								.getProfession() == VillagerProfession.LIBRARIAN)
+						.filter(e -> e.getVillagerData().getLevel() == 1)
+						.filter(e -> !experiencedVillagers.contains(e));
 		
 		villager = stream
-			.min(Comparator.comparingDouble(e -> player.squaredDistanceTo(e)))
-			.orElse(null);
+				.min(Comparator.comparingDouble(e -> player.squaredDistanceTo(e)))
+				.orElse(null);
 		
-		if(villager == null)
-		{
+		if (villager == null) {
 			String errorMsg = "Couldn't find a nearby librarian.";
 			int numExperienced = experiencedVillagers.size();
-			if(numExperienced > 0)
+			if (numExperienced > 0)
 				errorMsg += " (Except for " + numExperienced + " that "
-					+ (numExperienced == 1 ? "is" : "are")
-					+ " already experienced.)";
+						+ (numExperienced == 1 ? "is" : "are")
+						+ " already experienced.)";
 			
 			ChatUtils.error(errorMsg);
 			ChatUtils.message("Make sure both the librarian and the lectern"
-				+ " are reachable from where you are standing.");
+					+ " are reachable from where you are standing.");
 			setEnabled(false);
 			return;
 		}
@@ -720,28 +673,26 @@ public final class AutoLibrarianHack extends Hack
 		System.out.println("Found villager at " + villager.getBlockPos());
 	}
 	
-	private void setTargetJobSite()
-	{
+	private void setTargetJobSite() {
 		Vec3d eyesVec = RotationUtils.getEyesPos();
 		double rangeSq = range.getValueSq();
 		
 		Stream<BlockPos> stream = BlockUtils
-			.getAllInBoxStream(BlockPos.ofFloored(eyesVec),
-				range.getValueCeil())
-			.filter(pos -> eyesVec
-				.squaredDistanceTo(Vec3d.ofCenter(pos)) <= rangeSq)
-			.filter(pos -> BlockUtils.getBlock(pos) == Blocks.LECTERN);
+				.getAllInBoxStream(BlockPos.ofFloored(eyesVec),
+						range.getValueCeil())
+				.filter(pos -> eyesVec
+						.squaredDistanceTo(Vec3d.ofCenter(pos)) <= rangeSq)
+				.filter(pos -> BlockUtils.getBlock(pos) == Blocks.LECTERN);
 		
 		jobSite = stream
-			.min(Comparator.comparingDouble(
-				pos -> villager.squaredDistanceTo(Vec3d.ofCenter(pos))))
-			.orElse(null);
+				.min(Comparator.comparingDouble(
+						pos -> villager.squaredDistanceTo(Vec3d.ofCenter(pos))))
+				.orElse(null);
 		
-		if(jobSite == null)
-		{
+		if (jobSite == null) {
 			ChatUtils.error("Couldn't find the librarian's lectern.");
 			ChatUtils.message("Make sure both the librarian and the lectern"
-				+ " are reachable from where you are standing.");
+					+ " are reachable from where you are standing.");
 			setEnabled(false);
 			return;
 		}
@@ -750,25 +701,24 @@ public final class AutoLibrarianHack extends Hack
 	}
 	
 	@Override
-	public void onRender(MatrixStack matrixStack, float partialTicks)
-	{
+	public void onRender(MatrixStack matrixStack, float partialTicks) {
 		int green = 0xC000FF00;
 		int red = 0xC0FF0000;
 		
-		if(villager != null)
+		if (villager != null)
 			RenderUtils.drawOutlinedBox(matrixStack, villager.getBoundingBox(),
-				green, false);
+					green, false);
 		
-		if(jobSite != null)
+		if (jobSite != null)
 			RenderUtils.drawOutlinedBox(matrixStack, new Box(jobSite), green,
-				false);
+					false);
 		
 		List<Box> expVilBoxes = experiencedVillagers.stream()
-			.map(VillagerEntity::getBoundingBox).toList();
+				.map(VillagerEntity::getBoundingBox).toList();
 		RenderUtils.drawOutlinedBoxes(matrixStack, expVilBoxes, red, false);
 		RenderUtils.drawCrossBoxes(matrixStack, expVilBoxes, red, false);
 		
-		if(breakingJobSite)
+		if (breakingJobSite)
 			overlay.render(matrixStack, partialTicks, jobSite);
 	}
 }
