@@ -1,0 +1,25 @@
+{
+  "version": 2,
+  "blocks": [
+    {
+      "pos": [0, 0, 0],
+      "block": "minecraft:iron_block"
+    },
+    {
+      "pos": [0, 1, 0],
+      "block": "minecraft:iron_block"
+    },
+    {
+      "pos": [-1, 1, 0],
+      "block": "minecraft:iron_block"
+    },
+    {
+      "pos": [1, 1, 0],
+      "block": "minecraft:iron_block"
+    },
+    {
+      "pos": [0, 2, 0],
+      "block": "minecraft:carved_pumpkin"
+    }
+  ]
+}

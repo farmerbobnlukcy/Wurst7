@@ -64,7 +64,17 @@ public final class PlayerEspHack extends Hack implements UpdateListener,
 	private final CheckboxSetting gameplaySounds =
 		new CheckboxSetting("Gameplay Sounds",
 			"Plays Minecraft sounds when players are detected.", true);
+	private final CheckboxSetting playerDetectLogout = new CheckboxSetting(
+		"AutoLogout", "logs you out when a player has been detected.", true);
 	
+	private final CheckboxSetting writePositionLog =
+		new CheckboxSetting("Write Position Log",
+			"logs the position of the player when a player has been detected.",
+			true);
+	private final CheckboxSetting useFriendsList = new CheckboxSetting(
+		"Use Friendlist",
+		"uses the wurst friendslist to not log you out when a friend enters",
+		true);
 	private final SliderSetting alertDistance =
 		new SliderSetting("Alert Distance",
 			"Distance in blocks at which alerts will trigger for players.", 20,
@@ -96,6 +106,9 @@ public final class PlayerEspHack extends Hack implements UpdateListener,
 		addSetting(titleAlerts);
 		addSetting(gameplaySounds);
 		addSetting(alertDistance);
+		addSetting(playerDetectLogout);
+		addSetting(writePositionLog);
+		addSetting(useFriendsList);
 		entityFilters.forEach(this::addSetting);
 	}
 	
@@ -131,9 +144,26 @@ public final class PlayerEspHack extends Hack implements UpdateListener,
 		
 		stream = entityFilters.applyTo(stream);
 		
+		if(!players.isEmpty())
+		{
+			for(PlayerEntity p : players)
+			{
+				if(!WURST.getFriends().isFriend(p))
+				{
+					MC.world.disconnect();
+					MC.getNetworkHandler().sendChatMessage(
+						"logging you out because you ahve an issue with a player.");
+					MC.getNetworkHandler().sendChatMessage("Player "
+						+ p.getName()
+						+ "has reached your area and aused you to logout at "
+						+ MC.player.getPos().toString());
+					Text.of("player has been detected. logging you outs");
+				}
+			}
+		}
 		players.addAll(stream.collect(Collectors.toList()));
 		
-		// Alert logic
+		// Alert logic`
 		boolean anySoundAlerts = soundAlerts.isChecked();
 		boolean anyTitleAlerts = titleAlerts.isChecked();
 		boolean anyGameplaySounds = gameplaySounds.isChecked();

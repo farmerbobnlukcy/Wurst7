@@ -24,6 +24,7 @@ import net.wurstclient.events.RenderListener;
 import net.wurstclient.events.UpdateListener;
 import net.wurstclient.hack.Hack;
 import net.wurstclient.settings.*;
+import net.wurstclient.util.ChatUtils;
 import net.wurstclient.util.EntityUtils;
 import net.wurstclient.util.RenderUtils;
 import net.wurstclient.util.StreamUtils;
@@ -38,14 +39,18 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
-@SearchTags({"item esp", "ItemTracers", "item tracers"})
+@SearchTags({"itemesp", "esp", "item esp", "item tracers"})
 public final class ItemEspHack extends Hack implements UpdateListener,
 	CameraTransformViewBobbingListener, RenderListener
 {
 	
 	/**
 	 * Categories for different types of items.
-	 * Used for filtering in the ItemESP hack.
+	 * Used for filtering in the BossESP hack.
+	 */
+	/**
+	 * Categories for different types of items.
+	 * Used for filtering in the BossESP hack.
 	 */
 	public enum ItemCategory
 	{
@@ -177,12 +182,36 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 	private final FileSetting filterList = new FileSetting("Filter list",
 		"A list of items to filter out.\nPut each item name on a separate line.\n"
 			+ "The names must match the item's ID (e.g., minecraft:diamond).",
-		"item_esp_filters", this::createDefaultFilterList);
+		"boss_esp_filters", this::createDefaultFilterList);
 	
 	private final FileSetting priorityList = new FileSetting("Priority list",
 		"A list of items to prioritize.\nWhen these items are found, only they will be shown.\n"
 			+ "The names must match the item's ID (e.g., minecraft:diamond).",
-		"item_esp_priorities", this::createDefaultPriorityList);
+		"boss_esp_priorities", this::createDefaultPriorityList);
+	
+	private final CheckboxSetting useFilterList =
+		new CheckboxSetting("Use filter list",
+			"Enable filtering items from the filter list file.", true);
+	
+	private final CheckboxSetting filterRottenFlesh = new CheckboxSetting(
+		"Filter rotten flesh", "Don't show rotten flesh items.", true);
+	
+	private final CheckboxSetting filterArrows =
+		new CheckboxSetting("Filter arrows", "Don't show arrow items.", true);
+	
+	private final CheckboxSetting filterBones =
+		new CheckboxSetting("Filter bones", "Don't show bone items.", true);
+	
+	private final CheckboxSetting filterCrops = new CheckboxSetting(
+		"Filter crops",
+		"Don't show crop items (wheat, carrots, potatoes, beetroot).", true);
+	
+	private final CheckboxSetting filterLeather = new CheckboxSetting(
+		"Filter leather", "Don't show leather items.", true);
+	
+	private final CheckboxSetting filterNearbyItems =
+		new CheckboxSetting("Filter nearby items",
+			"Don't show items within 5 blocks of the player.", false);
 	
 	private final CheckboxSetting dashedLines =
 		new CheckboxSetting("Dashed lines",
@@ -206,6 +235,28 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 	
 	private final CheckboxSetting showBossBar = new CheckboxSetting("Boss bar",
 		"Shows a boss bar with item information.", true);
+	
+	// Custom origin settings
+	private final CheckboxSetting useCustomOrigins =
+		new CheckboxSetting("Use Custom Origins",
+			"Uses custom origin points for tracers instead of the crosshair.",
+			true);
+	
+	private final SliderSetting itemOriginX =
+		new SliderSetting("Item Origin X", "X offset for item tracers", 0.3,
+			-1.0, 1.0, 0.05, SliderSetting.ValueDisplay.DECIMAL);
+	
+	private final SliderSetting itemOriginY =
+		new SliderSetting("Item Origin Y", "Y offset for item tracers", -0.3,
+			-1.0, 1.0, 0.05, SliderSetting.ValueDisplay.DECIMAL);
+	
+	private final SliderSetting valuableOriginX = new SliderSetting(
+		"Valuable Origin X", "X offset for valuable item tracers", -0.3, -1.0,
+		1.0, 0.05, SliderSetting.ValueDisplay.DECIMAL);
+	
+	private final SliderSetting valuableOriginY = new SliderSetting(
+		"Valuable Origin Y", "Y offset for valuable item tracers", 0.3, -1.0,
+		1.0, 0.05, SliderSetting.ValueDisplay.DECIMAL);
 	
 	// List of special items that trigger alerts
 	private static final Set<String> VALUABLE_ITEMS = new HashSet<>(
@@ -233,10 +284,18 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 	private final ArrayList<ItemEntity> valuableItemsFound = new ArrayList<>();
 	private boolean priorityItemsPresent = false;
 	
+	// Track announced valuable items to prevent duplicates
+	private final Set<Integer> announcedValuableItems = new HashSet<>();
+	
 	// Item targeting and tracking
 	private ItemEntity targetItem = null;
+	private ItemEntity previousTargetItem = null;
 	private long lastInfoUpdateTime = 0;
 	private static final long INFO_UPDATE_DELAY = 100; // milliseconds
+	private long lastDisplayUpdateTime = 0;
+	private static final long DISPLAY_UPDATE_DELAY = 500; // milliseconds -
+	// prevents strobing
+	// prevents strobing
 	
 	// Tracking for alerts
 	private long lastAlertTime = 0;
@@ -249,14 +308,36 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 		addSetting(style);
 		addSetting(boxSize);
 		addSetting(color);
+		
+		// Filter settings
 		addSetting(filterList);
+		addSetting(useFilterList);
+		addSetting(filterRottenFlesh);
+		addSetting(filterArrows);
+		addSetting(filterBones);
+		addSetting(filterCrops);
+		addSetting(filterLeather);
+		addSetting(filterNearbyItems);
+		
+		// Priority settings
 		addSetting(priorityList);
+		
+		// Visual settings
 		addSetting(dashedLines);
 		addSetting(dashLength);
+		
+		// Info and alert settings
 		addSetting(showItemInfo);
 		addSetting(enableSoundAlerts);
 		addSetting(enableTitleAlerts);
 		addSetting(showBossBar);
+		
+		// Add custom origin settings
+		addSetting(useCustomOrigins);
+		addSetting(itemOriginX);
+		addSetting(itemOriginY);
+		addSetting(valuableOriginX);
+		addSetting(valuableOriginY);
 	}
 	
 	private void createDefaultFilterList(Path folder)
@@ -341,6 +422,98 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 		}
 	}
 	
+	/**
+	 * Checks if an item should be filtered based on checkbox settings.
+	 *
+	 * @param itemId
+	 *            The item's ID string
+	 * @param itemPos
+	 *            The item's position
+	 * @return true if the item should be filtered out
+	 */
+	private boolean shouldFilterItem(String itemId, Vec3d itemPos)
+	{
+		// Check proximity filter
+		if(filterNearbyItems.isChecked() && MC.player != null)
+		{
+			double distance = MC.player.getPos().distanceTo(itemPos);
+			if(distance <= 5.0)
+			{
+				return true;
+			}
+		}
+		
+		// Check rotten flesh filter
+		if(filterRottenFlesh.isChecked() && itemId.contains("rotten_flesh"))
+		{
+			return true;
+		}
+		
+		// Check arrows filter
+		if(filterArrows.isChecked() && itemId.contains("arrow"))
+		{
+			return true;
+		}
+		
+		// Check bones filter
+		if(filterBones.isChecked() && itemId.contains("bone"))
+		{
+			return true;
+		}
+		
+		// Check crops filter
+		if(filterCrops.isChecked()
+			&& (itemId.contains("wheat") || itemId.contains("carrot")
+				|| itemId.contains("potato") || itemId.contains("beetroot")))
+		{
+			return true;
+		}
+		
+		// Check leather filter
+		if(filterLeather.isChecked() && itemId.contains("leather"))
+		{
+			return true;
+		}
+		
+		// Check filter list file
+		if(useFilterList.isChecked() && filteredItems.contains(itemId))
+		{
+			return true;
+		}
+		
+		return false;
+	}
+	
+	/**
+	 * Reloads both filter and priority lists from files.
+	 * Public method for command access.
+	 */
+	public void reloadLists()
+	{
+		loadFilteredItems();
+		loadPriorityItems();
+	}
+	
+	/**
+	 * Gets the count of filtered items.
+	 *
+	 * @return The number of items in the filter list
+	 */
+	public int getFilteredItemsCount()
+	{
+		return filteredItems.size();
+	}
+	
+	/**
+	 * Gets the count of priority items.
+	 *
+	 * @return The number of items in the priority list
+	 */
+	public int getPriorityItemsCount()
+	{
+		return priorityItems.size();
+	}
+	
 	@Override
 	protected void onEnable()
 	{
@@ -350,6 +523,7 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 		
 		loadFilteredItems();
 		loadPriorityItems();
+		announcedValuableItems.clear();
 	}
 	
 	@Override
@@ -373,6 +547,10 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 		priorityItemsFound.clear();
 		valuableItemsFound.clear();
 		priorityItemsPresent = false;
+		
+		// Clean up announced items set if it gets too large
+		if(announcedValuableItems.size() > 100)
+			announcedValuableItems.clear();
 		
 		// Reload the filter list if the file was changed
 		if(filterList.getSelectedFile().toFile().exists())
@@ -398,6 +576,13 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 				if(isValuable)
 				{
 					valuableItemsFound.add(item);
+					
+					// Announce valuable item in chat if not already announced
+					if(!announcedValuableItems.contains(item.getId()))
+					{
+						announceValuableItem(item);
+						announcedValuableItems.add(item.getId());
+					}
 					
 					// Check if we should trigger alerts
 					if(System.currentTimeMillis()
@@ -444,8 +629,8 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 	}
 	
 	/**
-	 * Finds the item that the player is currently looking at
-	 * and updates the targetItem field.
+	 * Finds the item that the player is currently looking at using raycasting.
+	 * Only selects items whose hitbox intersects with the player's look vector.
 	 */
 	private void updateTargetItem()
 	{
@@ -459,36 +644,34 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 		ArrayList<ItemEntity> itemsToConsider =
 			priorityItemsPresent ? priorityItemsFound : items;
 		
-		// Get player's look vector
-		Vec3d cameraPos = MC.player.getCameraPosVec(1.0F);
-		Vec3d lookVec = MC.player.getRotationVec(1.0F).normalize();
+		// Get player's eye position and look vector
+		Vec3d eyePos = MC.player.getCameraPosVec(1.0F);
+		Vec3d lookVec = MC.player.getRotationVec(1.0F);
 		
-		// Find closest item in player's line of sight
+		// Raycast up to 100 blocks
+		double maxDistance = 100.0;
+		Vec3d endPos = eyePos.add(lookVec.multiply(maxDistance));
+		
+		// Find the closest item that intersects with the look ray
 		double closestDistance = Double.MAX_VALUE;
 		ItemEntity closestItem = null;
 		
 		for(ItemEntity item : itemsToConsider)
 		{
-			// Get the center of the item
-			Vec3d itemPos = item.getBoundingBox().getCenter();
+			Box hitbox = item.getBoundingBox();
 			
-			// Calculate vector from camera to item
-			Vec3d cameraToItem = itemPos.subtract(cameraPos);
-			double distanceToItem = cameraToItem.length();
+			// Check if the ray intersects with the item's hitbox
+			var raycast = hitbox.raycast(eyePos, endPos);
 			
-			// Skip items that are too far away (more than 32 blocks)
-			if(distanceToItem > 32)
-				continue;
-			
-			// Project the camera-to-item vector onto the look vector
-			double dot = cameraToItem.normalize().dotProduct(lookVec);
-			
-			// Consider items within a certain angle in front of the player
-			if(dot > 0.9)
-			{ // Roughly 25 degrees on each side
-				if(distanceToItem < closestDistance)
+			if(raycast.isPresent())
+			{
+				// Calculate distance to intersection point
+				double distance = eyePos.distanceTo(raycast.get());
+				
+				// Keep track of the closest intersecting item
+				if(distance < closestDistance)
 				{
-					closestDistance = distanceToItem;
+					closestDistance = distance;
 					closestItem = item;
 				}
 			}
@@ -532,12 +715,35 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 			for(ItemEntity e : itemsToRender)
 				ends.add(EntityUtils.getLerpedBox(e, partialTicks).getCenter());
 			
-			if(dashedLines.isChecked())
-				RenderUtils.drawDashedTracers(matrixStack, partialTicks, ends,
-					lineColor, false, (float)dashLength.getValue());
-			else
-				RenderUtils.drawTracers(matrixStack, partialTicks, ends,
-					lineColor, false);
+			if(useCustomOrigins.isChecked())
+			{
+				// Choose which origin to use based on whether we're showing
+				// valuable items
+				Vec3d origin;
+				if(!valuableItemsFound.isEmpty() && priorityItemsPresent)
+					origin = getCustomOrigin(valuableOriginX.getValue(),
+						valuableOriginY.getValue());
+				else
+					origin = getCustomOrigin(itemOriginX.getValue(),
+						itemOriginY.getValue());
+				
+				if(dashedLines.isChecked())
+					drawCustomOriginDashedTracers(matrixStack, partialTicks,
+						ends, lineColor, false, (float)dashLength.getValue(),
+						origin);
+				else
+					drawCustomOriginTracers(matrixStack, partialTicks, ends,
+						lineColor, false, origin);
+			}else
+			{
+				// Use default rendering
+				if(dashedLines.isChecked())
+					RenderUtils.drawDashedTracers(matrixStack, partialTicks,
+						ends, lineColor, false, (float)dashLength.getValue());
+				else
+					RenderUtils.drawTracers(matrixStack, partialTicks, ends,
+						lineColor, false);
+			}
 		}
 		
 		// Display information about the target item
@@ -549,8 +755,38 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 	 */
 	private void displayTargetItemInfo()
 	{
-		if(!showItemInfo.isChecked() || targetItem == null || MC.player == null)
+		if(!showItemInfo.isChecked() || MC.player == null)
+		{
+			// Clear display if no longer showing info
+			if(previousTargetItem != null)
+			{
+				MC.inGameHud.setTitle(Text.of(""));
+				MC.inGameHud.setSubtitle(Text.of(""));
+				previousTargetItem = null;
+			}
 			return;
+		}
+		
+		// Check if target item has changed or enough time has passed
+		boolean targetChanged = targetItem != previousTargetItem;
+		long currentTime = System.currentTimeMillis();
+		boolean shouldUpdate = targetChanged
+			|| (currentTime - lastDisplayUpdateTime >= DISPLAY_UPDATE_DELAY);
+		
+		if(!shouldUpdate)
+			return;
+		
+		// Clear display if no target
+		if(targetItem == null)
+		{
+			if(previousTargetItem != null)
+			{
+				MC.inGameHud.setTitle(Text.of(""));
+				MC.inGameHud.setSubtitle(Text.of(""));
+				previousTargetItem = null;
+			}
+			return;
+		}
 		
 		try
 		{
@@ -568,14 +804,18 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 			String message = "§e" + itemName + " §fx" + quantity + " §7("
 				+ formattedDistance + "m)";
 			
-			// Just set the title and subtitle directly - no need to check the
-			// title field
+			// Set the subtitle with longer display time to prevent strobing
 			MC.inGameHud.setTitle(Text.of(""));
 			MC.inGameHud.setSubtitle(Text.of(message));
-			MC.inGameHud.setTitleTicks(1, 5, 1); // fade in, stay, fade out
+			MC.inGameHud.setTitleTicks(0, 30, 5); // no fade in, stay longer,
+			// fade out
 			
 			// Update boss bar if enabled
 			updateBossBar(targetItem);
+			
+			// Track this update
+			previousTargetItem = targetItem;
+			lastDisplayUpdateTime = currentTime;
 			
 		}catch(Exception e)
 		{
@@ -615,7 +855,7 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 			}else if(priorityItems
 				.contains(item.getStack().getItem().toString()))
 			{
-				colorPrefix = "§e"; // Yellow for priority items
+				colorPrefix = "§e"; // Red for priority items
 			}else
 			{
 				colorPrefix = "§a"; // Green for normal items
@@ -646,6 +886,54 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 	}
 	
 	/**
+	 * Announces a valuable item in chat with name, quantity, coordinates, and
+	 * world.
+	 */
+	private void announceValuableItem(ItemEntity item)
+	{
+		if(MC.player == null || MC.world == null)
+			return;
+		
+		try
+		{
+			// Get item details
+			String itemName = item.getStack().getName().getString();
+			int quantity = item.getStack().getCount();
+			
+			// Get coordinates
+			Vec3d pos = item.getPos();
+			int x = (int)Math.floor(pos.x);
+			int y = (int)Math.floor(pos.y);
+			int z = (int)Math.floor(pos.z);
+			
+			// Get world/dimension name
+			String worldName = MC.world.getRegistryKey().getValue().toString();
+			String dimensionName;
+			if(worldName.contains("overworld"))
+				dimensionName = "Overworld";
+			else if(worldName.contains("the_nether"))
+				dimensionName = "Nether";
+			else if(worldName.contains("the_end"))
+				dimensionName = "The End";
+			else
+				dimensionName = worldName; // Use full registry key for custom
+											// dimensions
+				
+			// Format and send chat message
+			String message = String.format(
+				"§d§lValuable Item Found: §e%s §fx%d §7at §f[%d, %d, %d] §7in §f%s",
+				itemName, quantity, x, y, z, dimensionName);
+			
+			ChatUtils.message(message);
+			
+		}catch(Exception e)
+		{
+			System.out
+				.println("Error announcing valuable item: " + e.getMessage());
+		}
+	}
+	
+	/**
 	 * Plays a sound alert for a valuable item.
 	 */
 	private void playSoundAlert()
@@ -672,7 +960,95 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 	}
 	
 	/**
+	 * Gets a custom origin point for tracers based on given offsets.
+	 *
+	 * @param xOffset
+	 *            X offset from the center of the screen (-1 to 1)
+	 * @param yOffset
+	 *            Y offset from the center of the screen (-1 to 1)
+	 * @return A Vec3d position for the custom origin
+	 */
+	private Vec3d getCustomOrigin(double xOffset, double yOffset)
+	{
+		// Get player's eye position and view vectors
+		Vec3d eyePos = MC.player.getCameraPosVec(1.0F);
+		Vec3d lookVec = MC.player.getRotationVec(1.0F).normalize();
+		Vec3d upVec = new Vec3d(0, 1, 0);
+		
+		// Calculate right vector (perpendicular to look and up)
+		Vec3d rightVec = lookVec.crossProduct(upVec).normalize();
+		
+		// Recalculate up vector to ensure orthogonality
+		upVec = rightVec.crossProduct(lookVec).normalize();
+		
+		// Scale to move the point forward slightly in front of the player
+		double forwardDist = 0.5;
+		
+		// Apply offsets to create a point relative to player's view
+		return eyePos.add(
+			lookVec.multiply(forwardDist).add(rightVec.multiply(xOffset * 0.5))
+				.add(upVec.multiply(yOffset * 0.5)));
+	}
+	
+	/**
+	 * Draws tracers from a custom origin point instead of the center of the
+	 * screen.
+	 */
+	private void drawCustomOriginTracers(MatrixStack matrixStack,
+		float partialTicks, ArrayList<Vec3d> positions, int color,
+		boolean throughWalls, Vec3d origin)
+	{
+		// Draw tracers from this origin to each position
+		for(Vec3d end : positions)
+		{
+			RenderUtils.drawLine(matrixStack, origin, end, color, throughWalls);
+		}
+	}
+	
+	/**
+	 * Draws dashed tracers from a custom origin point.
+	 */
+	private void drawCustomOriginDashedTracers(MatrixStack matrixStack,
+		float partialTicks, ArrayList<Vec3d> positions, int color,
+		boolean throughWalls, float dashLength, Vec3d origin)
+	{
+		// For each end position
+		for(Vec3d end : positions)
+		{
+			Vec3d start = origin;
+			
+			// Calculate direction and total length
+			Vec3d dir = end.subtract(start).normalize();
+			double totalLength = start.distanceTo(end);
+			
+			// Draw dashed line segments
+			boolean draw = true;
+			for(double d = 0; d < totalLength; d += dashLength)
+			{
+				if(!draw)
+				{
+					draw = true;
+					continue;
+				}
+				
+				// Calculate segment points
+				double segmentEnd = Math.min(d + dashLength / 2.0, totalLength);
+				
+				Vec3d segmentStart = start.add(dir.multiply(d));
+				Vec3d segmentEndPoint = start.add(dir.multiply(segmentEnd));
+				
+				// Draw this segment
+				RenderUtils.drawLine(matrixStack, segmentStart, segmentEndPoint,
+					color, throughWalls);
+				
+				draw = false;
+			}
+		}
+	}
+	
+	/**
 	 * Shows a title alert for a valuable item.
+	 * Only shows for Shulker boxes and Netherite items.
 	 */
 	private void showTitleAlert(ItemEntity item)
 	{
@@ -681,6 +1057,15 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 		
 		try
 		{
+			String itemId = item.getStack().getItem().toString();
+			
+			// Only show title alerts for Shulker boxes and Netherite items
+			boolean isShulker = itemId.contains("shulker");
+			boolean isNetherite = itemId.contains("netherite");
+			
+			if(!isShulker && !isNetherite)
+				return;
+			
 			String itemName = item.getStack().getName().getString();
 			int quantity = item.getStack().getCount();
 			
@@ -692,7 +1077,7 @@ public final class ItemEspHack extends Hack implements UpdateListener,
 			// Show alert title and subtitle
 			MC.inGameHud.setTitle(Text.of("§5§l" + itemName));
 			MC.inGameHud.setSubtitle(Text.of(
-				"§e" + quantity + " found " + formattedDistance + "m away"));
+				"§ex" + quantity + " §7found " + formattedDistance + "m away"));
 			MC.inGameHud.setTitleTicks(10, 60, 10); // fade in, stay, fade out
 		}catch(Exception e)
 		{

@@ -10,6 +10,8 @@ package net.wurstclient.hacks;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.attribute.EntityAttributes;
+import net.minecraft.entity.mob.HostileEntity;
+import net.minecraft.entity.mob.WaterCreatureEntity;
 import net.minecraft.entity.passive.*;
 import net.minecraft.item.*;
 import net.minecraft.util.hit.EntityHitResult;
@@ -32,6 +34,13 @@ public final class AutoSwordHack extends Hack implements UpdateListener
 		new EnumSetting<>("Priority", Priority.values(), Priority.SPEED);
 	private final CheckboxSetting autoEatWait = new CheckboxSetting(
 		"Auto Eat Wait", "wait for autoeat to complete", false);
+	private final CheckboxSetting onlyHostile = new CheckboxSetting(
+		"Only Hostile Mobs",
+		"Only auto-switch weapons for hostile mobs (zombies, skeletons, etc.)",
+		false);
+	private final CheckboxSetting ignoreWhileGliding =
+		new CheckboxSetting("Ignore While Gliding",
+			"Don't auto-switch weapons while gliding with an elytra.", true);
 	private final CheckboxSetting ignoreAnimals = new CheckboxSetting(
 		"Ignore Animals", "ignores animals or friendly mobx", true);
 	private final CheckboxSetting ignoreVillagers = new CheckboxSetting(
@@ -61,6 +70,8 @@ public final class AutoSwordHack extends Hack implements UpdateListener
 		addSetting(priority);
 		addSetting(switchBack);
 		addSetting(autoEatWait);
+		addSetting(onlyHostile);
+		addSetting(ignoreWhileGliding);
 		addSetting(ignoreAnimals);
 		addSetting(ignoreVillagers);
 		addSetting(ignorePigmen);
@@ -84,6 +95,20 @@ public final class AutoSwordHack extends Hack implements UpdateListener
 	@Override
 	public void onUpdate()
 	{
+		// Don't auto-switch while gliding if setting is enabled
+		if(ignoreWhileGliding.isChecked() && MC.player.isGliding())
+		{
+			// update timer even while gliding
+			if(timer > 0)
+			{
+				timer--;
+				return;
+			}
+			
+			resetSlot();
+			return;
+		}
+		
 		if(MC.crosshairTarget != null
 			&& MC.crosshairTarget.getType() == HitResult.Type.ENTITY)
 		{
@@ -107,11 +132,16 @@ public final class AutoSwordHack extends Hack implements UpdateListener
 	
 	private boolean shouldAttackEntity(Entity entity)
 	{
+		// Check if we should only attack hostile mobs
+		if(onlyHostile.isChecked() && !(entity instanceof HostileEntity))
+			return false;
+		
 		// Check if we should ignore villagers
 		if(ignoreVillagers.isChecked() && isVillager(entity))
 			return false;
 		
 		// Check if we should ignore animals
+		
 		if(ignoreAnimals.isChecked() && isAnimal(entity))
 			return false;
 		
@@ -128,7 +158,13 @@ public final class AutoSwordHack extends Hack implements UpdateListener
 		return entity instanceof TameableEntity
 			|| entity instanceof AnimalEntity || entity instanceof FishEntity
 			|| entity instanceof AllayEntity || entity instanceof VillagerEntity
-			|| entity instanceof BatEntity || entity instanceof IronGolemEntity;
+			|| entity instanceof BatEntity || entity instanceof IronGolemEntity
+			|| entity instanceof WolfEntity || entity instanceof FoxEntity
+			|| entity instanceof PolarBearEntity
+			|| entity instanceof PandaEntity || entity instanceof AxolotlEntity
+			|| entity instanceof ParrotEntity || entity instanceof FrogEntity
+			|| entity instanceof WaterAnimalEntity
+			|| entity instanceof WaterCreatureEntity;
 	}
 	
 	private boolean isVillager(Entity entity)
@@ -190,8 +226,7 @@ public final class AutoSwordHack extends Hack implements UpdateListener
 	{
 		Item item = stack.getItem();
 		if(!(item instanceof SwordItem || item instanceof MiningToolItem
-			|| item instanceof TridentItem || item instanceof MaceItem
-			|| item instanceof HoeItem))
+			|| item instanceof TridentItem || item instanceof MaceItem))
 			return Integer.MIN_VALUE;
 		
 		switch(priority.getSelected())

@@ -45,7 +45,8 @@ public final class KillauraHack extends Hack
 	
 	private final AttackSpeedSliderSetting speed =
 		new AttackSpeedSliderSetting();
-	
+	private final CheckboxSetting notWhileGliding = new CheckboxSetting(
+		"Not While Gliding", "prevents you from attacking when gliding", true);
 	private final SliderSetting speedRandMS =
 		new SliderSetting("Speed randomization",
 			"Helps you bypass anti-cheat plugins by varying the delay between"
@@ -148,6 +149,9 @@ public final class KillauraHack extends Hack
 	{
 		
 		speed.updateTimer();
+		if((notWhileGliding.isChecked()) && (MC.player.isGliding()))
+			return;
+		
 		if(!speed.isTimeToAttack())
 			return;
 		
@@ -163,12 +167,14 @@ public final class KillauraHack extends Hack
 		
 		stream = entityFilters.applyTo(stream);
 		
+		// Filter out friends
+		stream = stream.filter(e -> !WURST.getFriends().isFriend(e));
+		
 		target = stream.min(priority.getSelected().comparator).orElse(null);
 		renderTarget = target;
 		if(target == null)
 			return;
 		
-		hasTarget = true;
 		WURST.getHax().autoSwordHack.setSlot(target);
 		
 		Vec3d hitVec = target.getBoundingBox().getCenter();
@@ -188,6 +194,7 @@ public final class KillauraHack extends Hack
 		if(target == null)
 			return;
 		
+		hasTarget = true;
 		MC.interactionManager.attackEntity(MC.player, target);
 		swingHand.swing(Hand.MAIN_HAND);
 		

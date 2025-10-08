@@ -9,10 +9,7 @@ package net.wurstclient.hacks;
 
 import net.minecraft.block.Block;
 import net.minecraft.block.Blocks;
-import net.minecraft.block.entity.BlockEntity;
-import net.minecraft.block.entity.SignBlockEntity;
 import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.text.Text;
 import net.minecraft.util.Hand;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
@@ -31,22 +28,15 @@ import net.wurstclient.util.OverlayRenderer;
 import net.wurstclient.util.RenderUtils;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
-import java.util.List;
-import java.util.stream.Collectors;
 
 @SearchTags({"auto sign", "sign breaker", "sign destroyer"})
 public final class AutoSignBreakHack extends Hack
 	implements UpdateListener, RenderListener
 {
 	private final SliderSetting range = new SliderSetting("Range",
-		"How far AutoSignBreak will reach to break signs.", 4.5, 1, 6, 0.05,
+		"How far AutoSignBreak will reach to break signs.", 4, 3, 5, 0.5,
 		ValueDisplay.DECIMAL);
-	
-	private final SliderSetting searchRadius = new SliderSetting(
-		"Search Radius", "How far AutoSignBreak will search for signs.", 16, 4,
-		32, 1, ValueDisplay.INTEGER);
 	
 	private final FacingSetting facing = FacingSetting.withoutPacketSpam(
 		"How AutoSignBreak should face the signs when breaking them.\n\n"
@@ -62,26 +52,9 @@ public final class AutoSignBreakHack extends Hack
 	private final SwingHandSetting swingHand =
 		new SwingHandSetting(this, SwingHand.SERVER);
 	
-	private final CheckboxSetting filterSigns = new CheckboxSetting(
-		"Filter Signs", "Only break signs with specific text", false);
-	
-	private final TextFieldSetting filterText =
-		new TextFieldSetting("Filter Text",
-			"Comma-separated text values to match (e.g. 'shop,buy,sell')",
-			"_Lide_", v -> v != null); // Simple validator that just checks for
-										// non-null
-	
 	private BlockPos currentSign;
 	private final ArrayList<BlockPos> signs = new ArrayList<>();
 	private final OverlayRenderer overlay = new OverlayRenderer();
-	
-	// For incremental search
-	private boolean isSearching = false;
-	private int searchTimeoutCounter = 0;
-	private static final int SEARCH_TIMEOUT = 60; // 3 seconds timeout
-	private BlockPos searchMin;
-	private BlockPos searchMax;
-	private int searchX, searchY, searchZ;
 	
 	public AutoSignBreakHack()
 	{
@@ -89,28 +62,17 @@ public final class AutoSignBreakHack extends Hack
 		setCategory(Category.BLOCKS);
 		
 		addSetting(range);
-		addSetting(searchRadius);
 		addSetting(facing);
 		addSetting(swingHand);
-		addSetting(filterSigns);
-		addSetting(filterText);
 	}
 	
 	@Override
 	public String getRenderName()
 	{
-		if(isSearching)
-			return getName() + " [Searching...]";
+		if(currentSign != null)
+			return getName() + " [Breaking]";
 		
-		if(currentSign == null)
-		{
-			if(signs.isEmpty())
-				return getName() + " [Searching]";
-			else
-				return getName();
-		}
-		
-		return getName() + " [Breaking]";
+		return getName();
 	}
 	
 	@Override
@@ -118,8 +80,6 @@ public final class AutoSignBreakHack extends Hack
 	{
 		signs.clear();
 		currentSign = null;
-		isSearching = false;
-		searchTimeoutCounter = 0;
 		
 		EVENTS.add(UpdateListener.class, this);
 		EVENTS.add(RenderListener.class, this);
@@ -139,51 +99,48 @@ public final class AutoSignBreakHack extends Hack
 		}
 		
 		overlay.resetProgress();
-		isSearching = false;
 	}
 	
 	@Override
 	public void onUpdate()
 	{
-		// Check for search timeout
-		if(isSearching)
-		{
-			searchTimeoutCounter++;
-			if(searchTimeoutCounter > SEARCH_TIMEOUT)
-			{
-				// If search takes too long, stop it
-				isSearching = false;
-				searchTimeoutCounter = 0;
-			}
-		}
-		
 		// Reset current sign if it's no longer valid
-		if(currentSign != null)
+		if(currentSign != null && !isSign(currentSign))
 		{
-			boolean isValidSign = isSign(currentSign);
-			
-			if(!isValidSign)
-			{
-				currentSign = null;
-				overlay.resetProgress();
-			}
+			currentSign = null;
+			overlay.resetProgress();
 		}
 		
 		// Find nearby signs if our list is empty
 		if(signs.isEmpty())
 		{
-			if(isSearching)
+			Vec3d playerPos = MC.player.getPos();
+			BlockPos playerBlockPos = BlockPos.ofFloored(playerPos);
+			int rangeI = (int)Math.ceil(range.getValue());
+			double rangeSq = range.getValueSq();
+			
+			// Simple search through all blocks in range
+			for(int x = -rangeI; x <= rangeI; x++)
 			{
-				// Continue incremental search
-				continueSignSearch();
-			}else
-			{
-				// Start a new search
-				startSignSearch();
+				for(int y = -rangeI; y <= rangeI; y++)
+				{
+					for(int z = -rangeI; z <= rangeI; z++)
+					{
+						BlockPos pos = playerBlockPos.add(x, y, z);
+						
+						// Check distance and if it's a sign
+						if(playerPos
+							.squaredDistanceTo(Vec3d.ofCenter(pos)) <= rangeSq
+							&& isSign(pos))
+						{
+							signs.add(pos);
+						}
+					}
+				}
 			}
 			
-			// Check if we found any signs
-			if(signs.isEmpty() && !isSearching)
+			// If no signs found, return
+			if(signs.isEmpty())
 				return;
 		}
 		
@@ -204,14 +161,6 @@ public final class AutoSignBreakHack extends Hack
 				
 				if(currentSign != null)
 				{
-					// Check if the sign matches our filter criteria
-					if(filterSigns.isChecked() && !matchesFilter(currentSign))
-					{
-						signs.remove(currentSign);
-						currentSign = null;
-						return;
-					}
-					
 					signs.remove(currentSign);
 					return;
 				}
@@ -246,128 +195,6 @@ public final class AutoSignBreakHack extends Hack
 			|| block == Blocks.MANGROVE_WALL_SIGN || block == Blocks.BAMBOO_SIGN
 			|| block == Blocks.BAMBOO_WALL_SIGN || block == Blocks.CHERRY_SIGN
 			|| block == Blocks.CHERRY_WALL_SIGN;
-	}
-	
-	private boolean matchesFilter(BlockPos pos)
-	{
-		if(!filterSigns.isChecked() || filterText.getValue().isEmpty())
-			return true;
-		
-		BlockEntity blockEntity = MC.world.getBlockEntity(pos);
-		if(!(blockEntity instanceof SignBlockEntity))
-			return false;
-		
-		SignBlockEntity sign = (SignBlockEntity)blockEntity;
-		
-		// Get filter terms
-		List<String> filterTerms =
-			Arrays.stream(filterText.getValue().split(",")).map(String::trim)
-				.filter(s -> !s.isEmpty()).collect(Collectors.toList());
-		
-		if(filterTerms.isEmpty())
-			return true;
-		
-		// Check front and back of sign for text matches
-		for(int i = 0; i < 8; i++)
-		{ // Check all 8 possible text lines (4 front, 4 back)
-			Text lineText = i < 4 ? sign.getFrontText().getMessage(i, false)
-				: sign.getBackText().getMessage(i - 4, false);
-			String lineStr = lineText.getString().toLowerCase();
-			
-			for(String term : filterTerms)
-			{
-				if(lineStr.contains(term.toLowerCase()))
-					return true;
-			}
-		}
-		
-		return false;
-	}
-	
-	private void startSignSearch()
-	{
-		int searchRadius = this.searchRadius.getValueI();
-		
-		BlockPos playerPos = BlockPos.ofFloored(MC.player.getPos());
-		searchMin = playerPos.add(-searchRadius, -searchRadius, -searchRadius);
-		searchMax = playerPos.add(searchRadius, searchRadius, searchRadius);
-		
-		// Initialize search state
-		isSearching = true;
-		searchTimeoutCounter = 0;
-		searchX = searchMin.getX();
-		searchY = searchMin.getY();
-		searchZ = searchMin.getZ();
-	}
-	
-	private void continueSignSearch()
-	{
-		if(!isSearching)
-			return;
-		
-		Vec3d playerPos = MC.player.getPos();
-		double rangeSq = range.getValueSq() * 2;
-		
-		// Process a limited number of blocks per tick
-		final int BLOCKS_PER_TICK = 200;
-		int processed = 0;
-		
-		while(processed < BLOCKS_PER_TICK)
-		{
-			// Check if we've finished the search
-			if(searchZ > searchMax.getZ())
-			{
-				isSearching = false;
-				break;
-			}
-			
-			BlockPos pos = new BlockPos(searchX, searchY, searchZ);
-			
-			// Fast distance check before doing expensive operations
-			double dx = searchX + 0.5 - playerPos.x;
-			double dy = searchY + 0.5 - playerPos.y;
-			double dz = searchZ + 0.5 - playerPos.z;
-			double fastDistSq = dx * dx + dy * dy + dz * dz;
-			
-			// Only do further checks if roughly in range
-			if(fastDistSq <= rangeSq * 1.5)
-			{
-				try
-				{
-					// Check if it's a sign
-					if(isSign(pos))
-					{
-						if(!filterSigns.isChecked() || matchesFilter(pos))
-							signs.add(pos);
-					}
-				}catch(Exception e)
-				{
-					// Skip this block if there's an error
-				}
-			}
-			
-			// Move to the next position
-			searchX++;
-			if(searchX > searchMax.getX())
-			{
-				searchX = searchMin.getX();
-				searchY++;
-				
-				if(searchY > searchMax.getY())
-				{
-					searchY = searchMin.getY();
-					searchZ++;
-				}
-			}
-			
-			processed++;
-		}
-		
-		// If we found enough signs, we can stop searching
-		if(!signs.isEmpty() && signs.size() >= 5)
-		{
-			isSearching = false;
-		}
 	}
 	
 	private void breakSign(BlockPos pos)
