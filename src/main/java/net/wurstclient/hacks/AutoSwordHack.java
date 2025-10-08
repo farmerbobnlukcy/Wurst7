@@ -35,8 +35,8 @@ public final class AutoSwordHack extends Hack implements UpdateListener {
 			"Ignore Animals", "ignores animals or friendly mobx", true);
 	private final CheckboxSetting ignoreVillagers = new CheckboxSetting(
 			"Ignore Villagers", "ignores villagers and related mobs", true);
-	private final CheckboxSetting ignorePigmen = new CheckboxSetting(
-			"Ignore Pigmen", "ignores Pigmen", true);
+	private final CheckboxSetting ignorePigmen =
+			new CheckboxSetting("Ignore Pigmen", "ignores Pigmen", true);
 	private final CheckboxSetting switchBack = new CheckboxSetting(
 			"Switch back", "Switches back to the previously selected slot after"
 			+ " \u00a7lRelease time\u00a7r has passed.",
@@ -116,19 +116,16 @@ public final class AutoSwordHack extends Hack implements UpdateListener {
 			return false;
 		}
 		return entity instanceof TameableEntity
-				|| entity instanceof AnimalEntity
-				|| entity instanceof FishEntity
-				|| entity instanceof AllayEntity
-				|| entity instanceof VillagerEntity
-				|| entity instanceof BatEntity
-				|| entity instanceof IronGolemEntity;
+				|| entity instanceof AnimalEntity || entity instanceof FishEntity
+				|| entity instanceof AllayEntity || entity instanceof VillagerEntity
+				|| entity instanceof BatEntity || entity instanceof IronGolemEntity;
 	}
 	
 	private boolean isVillager(Entity entity) {
 		// Check if the entity is a villager or related mob (like wandering
 		// trader)
-		return entity instanceof VillagerEntity ||
-				entity instanceof WanderingTraderEntity
+		return entity instanceof VillagerEntity
+				|| entity instanceof WanderingTraderEntity
 				|| entity instanceof TraderLlamaEntity;
 	}
 	
@@ -178,7 +175,7 @@ public final class AutoSwordHack extends Hack implements UpdateListener {
 	private float getValue(ItemStack stack, Entity entity) {
 		Item item = stack.getItem();
 		if (!(item instanceof SwordItem || item instanceof MiningToolItem
-				|| item instanceof TridentItem || item instanceof MaceItem))
+				|| item instanceof TridentItem || item instanceof MaceItem || item instanceof HoeItem))
 			return Integer.MIN_VALUE;
 		
 		switch (priority.getSelected()) {
