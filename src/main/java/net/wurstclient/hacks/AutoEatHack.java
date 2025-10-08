@@ -7,10 +7,6 @@
  */
 package net.wurstclient.hacks;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.stream.Stream;
-
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockWithEntity;
 import net.minecraft.block.CraftingTableBlock;
@@ -44,6 +40,10 @@ import net.wurstclient.settings.EnumSetting;
 import net.wurstclient.settings.SliderSetting;
 import net.wurstclient.settings.SliderSetting.ValueDisplay;
 import net.wurstclient.util.InventoryUtils;
+
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.stream.Stream;
 
 @SearchTags({"auto eat", "AutoFood", "auto food", "AutoFeeder", "auto feeder",
 	"AutoFeeding", "auto feeding", "AutoSoup", "auto soup"})
@@ -261,6 +261,8 @@ public final class AutoEatHack extends Hack implements UpdateListener
 			return false;
 		
 		if(isClickable(MC.crosshairTarget))
+			return false;
+		if(WURST.getHax().killauraHack.hasTarget)
 			return false;
 		
 		return true;
