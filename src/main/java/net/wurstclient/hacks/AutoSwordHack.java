@@ -26,33 +26,35 @@ import net.wurstclient.util.EntityUtils;
 import net.wurstclient.util.ItemUtils;
 
 @SearchTags({"sword auto"})
-public final class AutoSwordHack extends Hack implements UpdateListener {
+public final class AutoSwordHack extends Hack implements UpdateListener
+{
 	private final EnumSetting<Priority> priority =
-			new EnumSetting<>("Priority", Priority.values(), Priority.SPEED);
+		new EnumSetting<>("Priority", Priority.values(), Priority.SPEED);
 	private final CheckboxSetting autoEatWait = new CheckboxSetting(
-			"Auto Eat Wait", "wait for autoeat to complete", false);
+		"Auto Eat Wait", "wait for autoeat to complete", false);
 	private final CheckboxSetting ignoreAnimals = new CheckboxSetting(
-			"Ignore Animals", "ignores animals or friendly mobx", true);
+		"Ignore Animals", "ignores animals or friendly mobx", true);
 	private final CheckboxSetting ignoreVillagers = new CheckboxSetting(
-			"Ignore Villagers", "ignores villagers and related mobs", true);
+		"Ignore Villagers", "ignores villagers and related mobs", true);
 	private final CheckboxSetting ignorePigmen =
-			new CheckboxSetting("Ignore Pigmen", "ignores Pigmen", true);
+		new CheckboxSetting("Ignore Pigmen", "ignores Pigmen", true);
 	private final CheckboxSetting switchBack = new CheckboxSetting(
-			"Switch back", "Switches back to the previously selected slot after"
+		"Switch back", "Switches back to the previously selected slot after"
 			+ " \u00a7lRelease time\u00a7r has passed.",
-			true);
+		true);
 	
 	private final SliderSetting releaseTime = new SliderSetting("Release time",
-			"Time until AutoSword will switch back from the weapon to the"
-					+ " previously selected slot.\n\n"
-					+ "Only works when \u00a7lSwitch back\u00a7r is checked.",
-			10, 1, 200, 1,
-			ValueDisplay.INTEGER.withSuffix(" ticks").withLabel(1, "1 tick"));
+		"Time until AutoSword will switch back from the weapon to the"
+			+ " previously selected slot.\n\n"
+			+ "Only works when \u00a7lSwitch back\u00a7r is checked.",
+		10, 1, 200, 1,
+		ValueDisplay.INTEGER.withSuffix(" ticks").withLabel(1, "1 tick"));
 	
 	private int oldSlot;
 	private int timer;
 	
-	public AutoSwordHack() {
+	public AutoSwordHack()
+	{
 		super("AutoSword");
 		setCategory(Category.COMBAT);
 		
@@ -66,31 +68,36 @@ public final class AutoSwordHack extends Hack implements UpdateListener {
 	}
 	
 	@Override
-	protected void onEnable() {
+	protected void onEnable()
+	{
 		oldSlot = -1;
 		EVENTS.add(UpdateListener.class, this);
 	}
 	
 	@Override
-	protected void onDisable() {
+	protected void onDisable()
+	{
 		EVENTS.remove(UpdateListener.class, this);
 		resetSlot();
 	}
 	
 	@Override
-	public void onUpdate() {
-		if (MC.crosshairTarget != null
-				&& MC.crosshairTarget.getType() == HitResult.Type.ENTITY) {
-			Entity entity = ((EntityHitResult) MC.crosshairTarget).getEntity();
+	public void onUpdate()
+	{
+		if(MC.crosshairTarget != null
+			&& MC.crosshairTarget.getType() == HitResult.Type.ENTITY)
+		{
+			Entity entity = ((EntityHitResult)MC.crosshairTarget).getEntity();
 			
-			if (entity instanceof LivingEntity
-					&& EntityUtils.IS_ATTACKABLE.test(entity)
-					&& shouldAttackEntity(entity))
+			if(entity instanceof LivingEntity
+				&& EntityUtils.IS_ATTACKABLE.test(entity)
+				&& shouldAttackEntity(entity))
 				setSlot(entity);
 		}
 		
 		// update timer
-		if (timer > 0) {
+		if(timer > 0)
+		{
 			timer--;
 			return;
 		}
@@ -98,52 +105,58 @@ public final class AutoSwordHack extends Hack implements UpdateListener {
 		resetSlot();
 	}
 	
-	private boolean shouldAttackEntity(Entity entity) {
+	private boolean shouldAttackEntity(Entity entity)
+	{
 		// Check if we should ignore villagers
-		if (ignoreVillagers.isChecked() && isVillager(entity))
+		if(ignoreVillagers.isChecked() && isVillager(entity))
 			return false;
 		
 		// Check if we should ignore animals
-		if (ignoreAnimals.isChecked() && isAnimal(entity))
+		if(ignoreAnimals.isChecked() && isAnimal(entity))
 			return false;
 		
 		return true;
 	}
 	
-	private boolean isAnimal(Entity entity) {
+	private boolean isAnimal(Entity entity)
+	{
 		// Check common animal types from vanilla Minecraft
-		if ((entity instanceof CowEntity) || (entity instanceof PigEntity)) {
+		if((entity instanceof CowEntity) || (entity instanceof PigEntity))
+		{
 			return false;
 		}
 		return entity instanceof TameableEntity
-				|| entity instanceof AnimalEntity || entity instanceof FishEntity
-				|| entity instanceof AllayEntity || entity instanceof VillagerEntity
-				|| entity instanceof BatEntity || entity instanceof IronGolemEntity;
+			|| entity instanceof AnimalEntity || entity instanceof FishEntity
+			|| entity instanceof AllayEntity || entity instanceof VillagerEntity
+			|| entity instanceof BatEntity || entity instanceof IronGolemEntity;
 	}
 	
-	private boolean isVillager(Entity entity) {
+	private boolean isVillager(Entity entity)
+	{
 		// Check if the entity is a villager or related mob (like wandering
 		// trader)
 		return entity instanceof VillagerEntity
-				|| entity instanceof WanderingTraderEntity
-				|| entity instanceof TraderLlamaEntity;
+			|| entity instanceof WanderingTraderEntity
+			|| entity instanceof TraderLlamaEntity;
 	}
 	
-	public void setSlot(Entity entity) {
+	public void setSlot(Entity entity)
+	{
 		// check if active
-		if (!isEnabled())
+		if(!isEnabled())
 			return;
 		
 		// wait for AutoEat
-		if (WURST.getHax().autoEatHack.isEating())
+		if(WURST.getHax().autoEatHack.isEating())
 			return;
 		
 		// find best weapon
 		float bestValue = Integer.MIN_VALUE;
 		int bestSlot = -1;
-		for (int i = 0; i < 9; i++) {
+		for(int i = 0; i < 9; i++)
+		{
 			// skip empty slots
-			if (MC.player.getInventory().getStack(i).isEmpty())
+			if(MC.player.getInventory().getStack(i).isEmpty())
 				continue;
 			
 			// get weapon value
@@ -151,18 +164,19 @@ public final class AutoSwordHack extends Hack implements UpdateListener {
 			float value = getValue(stack, entity);
 			
 			// compare with previous best weapon
-			if (value > bestValue) {
+			if(value > bestValue)
+			{
 				bestValue = value;
 				bestSlot = i;
 			}
 		}
 		
 		// check if any weapon was found
-		if (bestSlot == -1)
+		if(bestSlot == -1)
 			return;
 		
 		// save old slot
-		if (oldSlot == -1)
+		if(oldSlot == -1)
 			oldSlot = MC.player.getInventory().selectedSlot;
 		
 		// set slot
@@ -172,61 +186,70 @@ public final class AutoSwordHack extends Hack implements UpdateListener {
 		timer = releaseTime.getValueI();
 	}
 	
-	private float getValue(ItemStack stack, Entity entity) {
+	private float getValue(ItemStack stack, Entity entity)
+	{
 		Item item = stack.getItem();
-		if (!(item instanceof SwordItem || item instanceof MiningToolItem
-				|| item instanceof TridentItem || item instanceof MaceItem || item instanceof HoeItem))
+		if(!(item instanceof SwordItem || item instanceof MiningToolItem
+			|| item instanceof TridentItem || item instanceof MaceItem
+			|| item instanceof HoeItem))
 			return Integer.MIN_VALUE;
 		
-		switch (priority.getSelected()) {
+		switch(priority.getSelected())
+		{
 			case SPEED:
-				return (float) ItemUtils
-						.getAttribute(item, EntityAttributes.ATTACK_SPEED)
-						.orElse(Integer.MIN_VALUE);
+			return (float)ItemUtils
+				.getAttribute(item, EntityAttributes.ATTACK_SPEED)
+				.orElse(Integer.MIN_VALUE);
 			
 			// Client-side item-specific attack damage calculation no
 			// longer exists as of 24w18a (1.21). Related bug: MC-196250
 			case DAMAGE:
-				// EntityType<?> group = entity.getType();
-				float dmg = (float) ItemUtils
-						.getAttribute(item, EntityAttributes.ATTACK_DAMAGE)
-						.orElse(Integer.MIN_VALUE);
-				
-				// Check for mace, get bonus damage from fall
-				if (item instanceof MaceItem mace)
-					dmg = mace.getBonusAttackDamage(MC.player, dmg,
-							entity.getDamageSources().playerAttack(MC.player));
-				// dmg += EnchantmentHelper.getAttackDamage(stack, group);
-				return dmg;
+			// EntityType<?> group = entity.getType();
+			float dmg = (float)ItemUtils
+				.getAttribute(item, EntityAttributes.ATTACK_DAMAGE)
+				.orElse(Integer.MIN_VALUE);
+			
+			// Check for mace, get bonus damage from fall
+			if(item instanceof MaceItem mace)
+				dmg = mace.getBonusAttackDamage(MC.player, dmg,
+					entity.getDamageSources().playerAttack(MC.player));
+			// dmg += EnchantmentHelper.getAttackDamage(stack, group);
+			return dmg;
 		}
 		
 		return Integer.MIN_VALUE;
 	}
 	
-	private void resetSlot() {
-		if (!switchBack.isChecked()) {
+	private void resetSlot()
+	{
+		if(!switchBack.isChecked())
+		{
 			oldSlot = -1;
 			return;
 		}
 		
-		if (oldSlot != -1) {
+		if(oldSlot != -1)
+		{
 			MC.player.getInventory().selectedSlot = oldSlot;
 			oldSlot = -1;
 		}
 	}
 	
-	private enum Priority {
+	private enum Priority
+	{
 		SPEED("Speed (swords)"),
 		DAMAGE("Damage (axes)");
 		
 		private final String name;
 		
-		private Priority(String name) {
+		private Priority(String name)
+		{
 			this.name = name;
 		}
 		
 		@Override
-		public String toString() {
+		public String toString()
+		{
 			return name;
 		}
 	}
